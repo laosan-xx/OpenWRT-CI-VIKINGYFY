@@ -8,7 +8,7 @@ sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $(find ./feeds/luci/modules/luci-m
 sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" $(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
 #修改默认密码 tk!@1234
 # sed -i "s/root:.*/root:$5$LBVbSNqCOFq9HaHn$r8tvf8BbR3npRdh/vvruHjqokhXQOUI.uWjpgLjbvj4:20241:0:99999:7:::/g" package/base-files/files/etc/shadow
-sed -i "s/root:.*/root:\$5\$LBVbSNqCOFq9HaHn\$r8tvf8BbR3npRdh/vvruHjqokhXQOUI.uWjpgLjbvj4:20241:0:99999:7:::/g" $(find ./package/base-files/files/etc/ -type f -name "shadow")
+sed -i "s/root:.*/root:\$5\$LBVbSNqCOFq9HaHn\$r8tvf8BbR3npRdh\/vvruHjqokhXQOUI.uWjpgLjbvj4:20241:0:99999:7:::/g" $(find ./package/base-files/files/etc/ -type f -name "shadow")
 
 WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
