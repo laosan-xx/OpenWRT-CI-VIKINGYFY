@@ -8,6 +8,8 @@ on:
     workflows: ["Auto-Clean"]
     types:
       - completed
+    branches:
+      - x86
   #手动编译
   workflow_dispatch:
     inputs:
