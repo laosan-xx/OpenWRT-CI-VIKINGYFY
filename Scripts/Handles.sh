@@ -6,7 +6,7 @@ FEEDS_PATH="$GITHUB_WORKSPACE/wrt/feeds/"
 #预置Frpc数据
 FRPC_CONFIG_FILE="../feeds/packages/net/frp/files/frpc.config"
 FRPC_INIT_FILE="../feeds/packages/net/frp/files/frpc.init"
-FRPC_ROOT_PATH="../feeds/luci/applications/luci-app-frpc/root"
+FRPC_LUCI_PATH="../feeds/luci/applications/luci-app-frpc"
 
 if [ -f "$FRPC_CONFIG_FILE" ]; then
 	echo " "
@@ -46,11 +46,29 @@ if [ -f "$FRPC_CONFIG_FILE" ]; then
 	echo "------------------------"
 
 	# 将当前目录frpc下的etc文件夹复制到 ../feeds/luci/applications/luci-app-frpc/root/etc
-  # FRPC_ROOT_PATH 下创建 /etc/init.d/ 文件夹
-	mkdir -p $FRPC_ROOT_PATH/etc/init.d
+  # FRPC_LUCI_PATH 下创建 /etc/init.d/ 文件夹
+	mkdir -p $FRPC_LUCI_PATH/root/etc/init.d
   # 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
-	cp -r $FRPC_INIT_FILE $FRPC_ROOT_PATH/etc/init.d/
-  test -d $FRPC_ROOT_PATH/etc/init.d && echo "frp etc目录存在，复制可能成功" || echo "frp etc目录不存在，复制失败"
+	cp -r $FRPC_INIT_FILE $FRPC_LUCI_PATH/root/etc/init.d/
+  test -d $FRPC_LUCI_PATH/root/etc/init.d && echo "frp etc目录存在，复制可能成功" || echo "frp etc目录不存在，复制失败"
+
+  # 在 $FRPC_LUCI_PATH/Makefile 中添加以下内容
+  echo -e '\ndefine Package/$(PKG_NAME)/postinst\n#!/bin/sh\nchmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1\nln -sf "../init.d/frpc" \\\n  "$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1\nexit 0\nendef' >> $FRPC_LUCI_PATH/Makefile
+  # define Package/$(PKG_NAME)/postinst
+  #   #!/bin/sh
+  #   chmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1
+  #   ln -sf "../init.d/frpc" \
+  #     "$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1
+  #   exit 0
+  # endef
+  
+  # 检验一下内容是否添加成功
+  grep -q 'define Package/$(PKG_NAME)/postinst' $FRPC_LUCI_PATH/Makefile
+  if [ $? -eq 0 ]; then
+    echo "postinst 内容添加成功"
+  else
+    echo "postinst 内容添加失败"
+  fi
 
 	cd $PKG_PATH && echo "frpc config has been set!"
 fi
