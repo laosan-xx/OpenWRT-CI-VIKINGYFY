@@ -4,47 +4,53 @@ PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
 FEEDS_PATH="$GITHUB_WORKSPACE/wrt/feeds/"
 
 #预置Frpc数据
-FRPC_CONFIG_DRV="../feeds/packages/net/frp/files/frpc.config"
-if [ -f "$FRPC_CONFIG_DRV" ]; then
+FRPC_CONFIG_FILE="../feeds/packages/net/frp/files/frpc.config"
+FRPC_INIT_FILE="../feeds/packages/net/frp/files/frpc.init"
+FRPC_ROOT_PATH="../feeds/luci/applications/luci-app-frpc/root"
+
+if [ -f "$FRPC_CONFIG_FILE" ]; then
 	echo " "
 
 	# 生成随机英文字符串（8位）
 	RANDOM_NAME=$(cat /dev/urandom | tr -dc 'a-z' | head -c 8)
 
-	sed -i 's/server_addr = 127.0.0.1/server_addr = frp.2026178.xyz/g' $FRPC_CONFIG_DRV
-	sed -i 's/server_port = 7000/server_port = 5443/g' $FRPC_CONFIG_DRV
-	sed -i '/option server_port/a\\toption token TiZTjCmJ9ZwCCiMy' $FRPC_CONFIG_DRV
-	sed -i '/option token/a\\toption user '"$RANDOM_NAME"'' $FRPC_CONFIG_DRV
-	sed -i '/option user/a\\toption login_fail_exit false' $FRPC_CONFIG_DRV
-	sed -i '/option login_fail_exit/a\\toption protocol websocket' $FRPC_CONFIG_DRV
-	sed -i '/option protocol/a\\toption tls_enable false' $FRPC_CONFIG_DRV
+	sed -i '/config conf '\''common'\''/,/^$/s/option server_addr 127.0.0.1/option server_addr frp.2026178.xyz/' $FRPC_CONFIG_FILE
+	sed -i '/config conf '\''common'\''/,/^$/s/option server_port 7000/option server_port 5443/' $FRPC_CONFIG_FILE
+	sed -i '/option server_port/a\\toption token TiZTjCmJ9ZwCCiMy' $FRPC_CONFIG_FILE
+	sed -i '/option token/a\\toption user '"$RANDOM_NAME"'' $FRPC_CONFIG_FILE
+	sed -i '/option user/a\\toption login_fail_exit false' $FRPC_CONFIG_FILE
+	sed -i '/option login_fail_exit/a\\toption protocol websocket' $FRPC_CONFIG_FILE
+	sed -i '/option protocol/a\\toption tls_enable false' $FRPC_CONFIG_FILE
 
 	# 删除默认ssh部分
-	# sed -i '/config conf '\''ssh'\''/,/option remote_port 6000/d' $FRPC_CONFIG_DRV
+	# sed -i '/config conf '\''ssh'\''/,/option remote_port 6000/d' $FRPC_CONFIG_FILE
 	# 只删除默认ssh固定端口
-	sed -i '/option remote_port 6000/d' $FRPC_CONFIG_DRV
+	sed -i '/option remote_port 6000/d' $FRPC_CONFIG_FILE
 	# 修改ssh的local_ip
-	sed -i '/config conf '\''ssh'\''/,/option local_ip/s/option local_ip 127.0.0.1/option local_ip 192.168.100.1/' $FRPC_CONFIG_DRV
+	sed -i '/config conf '\''ssh'\''/,/option local_ip/s/option local_ip 127.0.0.1/option local_ip 192.168.100.1/' $FRPC_CONFIG_FILE
 
 	# 添加web配置
-	sed -i '$a\\nconfig conf '\''web'\''\n\toption type tcp\n\toption use_encryption true\n\toption use_compression true\n\toption local_ip 127.0.0.1\n\toption local_port 80' $FRPC_CONFIG_DRV
+	sed -i '$a\\nconfig conf '\''web'\''\n\toption type tcp\n\toption use_encryption true\n\toption use_compression true\n\toption local_ip 127.0.0.1\n\toption local_port 80' $FRPC_CONFIG_FILE
 
 	# 验证修改结果
 	echo "验证frpc配置修改结果："
 	echo "------------------------"
 	echo "common配置："
-	grep -A 7 "config conf 'common'" $FRPC_CONFIG_DRV
+	grep -A 7 "config conf 'common'" $FRPC_CONFIG_FILE
 	echo "------------------------"
 	echo "ssh配置："
-	grep -A 4 "config conf 'ssh'" $FRPC_CONFIG_DRV
+	grep -A 4 "config conf 'ssh'" $FRPC_CONFIG_FILE
 	echo "------------------------"
 	echo "web配置："
-	grep -A 5 "config conf 'web'" $FRPC_CONFIG_DRV
+	grep -A 5 "config conf 'web'" $FRPC_CONFIG_FILE
 	echo "------------------------"
 
 	# 将当前目录frpc下的etc文件夹复制到 ../feeds/luci/applications/luci-app-frpc/root/etc
-	cp -r ./frpc/etc ../feeds/luci/applications/luci-app-frpc/root/etc
-  test -d ../feeds/luci/applications/luci-app-frpc/root/etc && echo "frp etc目录存在，复制可能成功" || echo "frp etc目录不存在，复制失败"
+  # FRPC_ROOT_PATH 下创建 /etc/init.d/ 文件夹
+	mkdir -p $FRPC_ROOT_PATH/etc/init.d
+  # 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
+	cp -r $FRPC_INIT_FILE $FRPC_ROOT_PATH/etc/init.d/
+  test -d $FRPC_ROOT_PATH/etc/init.d && echo "frp etc目录存在，复制可能成功" || echo "frp etc目录不存在，复制失败"
 
 	cd $PKG_PATH && echo "frpc config has been set!"
 fi
