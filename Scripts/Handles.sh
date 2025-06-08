@@ -50,7 +50,7 @@ if [ -f "$FRPC_CONFIG_FILE" ]; then
 	mkdir -p $FRPC_LUCI_PATH/root/etc/init.d
   # 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
 	cp -r $FRPC_INIT_FILE $FRPC_LUCI_PATH/root/etc/init.d/
-  test -d $FRPC_LUCI_PATH/root/etc/init.d && echo "frp etc目录存在，复制可能成功" || echo "frp etc目录不存在，复制失败"
+  test -f $FRPC_LUCI_PATH/root/etc/init.d/frpc.init && echo "frpc.init文件复制成功" || echo "frpc.init文件复制失败"
 
   # 在 $FRPC_LUCI_PATH/Makefile 中添加以下内容
   echo -e '\ndefine Package/$(PKG_NAME)/postinst\n#!/bin/sh\nchmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1\nln -sf "../init.d/frpc" \\\n  "$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1\nexit 0\nendef' >> $FRPC_LUCI_PATH/Makefile
