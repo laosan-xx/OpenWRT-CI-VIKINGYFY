@@ -1,6 +1,7 @@
 #!/bin/bash
 
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
+FEEDS_PATH="$GITHUB_WORKSPACE/wrt/feeds/"
 
 #预置HomeProxy数据
 if [ -d *"homeproxy"* ]; then
@@ -25,13 +26,21 @@ if [ -d *"homeproxy"* ]; then
 fi
 
 #修改argon主题字体和颜色
-if [ -d *"luci-theme-argon"* ]; then
+# if [ -d *"luci-theme-argon"* ]; then
+# 	echo " "
+
+# 	cd ./luci-theme-argon/
+
+# 	sed -i "/font-weight:/ { /important/! { /\/\*/! s/:.*/: var(--font-weight);/ } }" $(find ./luci-theme-argon -type f -iname "*.css")
+# 	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.2'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" ./luci-app-argon-config/root/etc/config/argon
+
+# 	cd $PKG_PATH && echo "theme-argon has been fixed!"
+# fi
+ARGON_CONFIG_DRV="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
+if [ -f "ARGON_CONFIG_DRV" ]; then
 	echo " "
-
-	cd ./luci-theme-argon/
-
-	sed -i "/font-weight:/ { /important/! { /\/\*/! s/:.*/: var(--font-weight);/ } }" $(find ./luci-theme-argon -type f -iname "*.css")
-	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.2'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" ./luci-app-argon-config/root/etc/config/argon
+ 
+	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_DRV
 
 	cd $PKG_PATH && echo "theme-argon has been fixed!"
 fi
