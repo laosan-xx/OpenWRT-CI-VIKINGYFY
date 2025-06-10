@@ -45,33 +45,25 @@ if [ -f "$FRPC_CONFIG_FILE" ]; then
 	grep -A 5 "config conf 'web'" $FRPC_CONFIG_FILE
 	echo "------------------------"
 
-	# 将当前目录frpc下的etc文件夹复制到 ../feeds/luci/applications/luci-app-frpc/root/etc
-  # FRPC_LUCI_PATH 下创建 /etc/init.d/ 文件夹
+	# 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
 	mkdir -p $FRPC_LUCI_PATH/root/etc/init.d
-  # 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
 	cp -r $FRPC_INIT_FILE $FRPC_LUCI_PATH/root/etc/init.d/
-  test -f $FRPC_LUCI_PATH/root/etc/init.d/frpc.init && echo "frpc.init文件复制成功" || echo "frpc.init文件复制失败"
+	test -f $FRPC_LUCI_PATH/root/etc/init.d/frpc.init && echo "frpc.init文件复制成功" || echo "frpc.init文件复制失败"
 
-  # 在 $FRPC_LUCI_PATH/Makefile 中添加以下内容
-  echo -e '\ndefine Package/$(PKG_NAME)/postinst\n#!/bin/sh\nchmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1\nln -sf "../init.d/frpc" \\\n  "$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1\nexit 0\nendef' >> $FRPC_LUCI_PATH/Makefile
-  # define Package/$(PKG_NAME)/postinst
-  #   #!/bin/sh
-  #   chmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1
-  #   ln -sf "../init.d/frpc" \
-  #     "$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1
-  #   exit 0
-  # endef
-  
-  # 检验一下内容是否添加成功
-  grep -q 'define Package/$(PKG_NAME)/postinst' $FRPC_LUCI_PATH/Makefile
-  if [ $? -eq 0 ]; then
-    echo "postinst 内容添加成功"
-  else
-    echo "postinst 内容添加失败"
-  fi
+	# 在 $FRPC_LUCI_PATH/Makefile 中添加以下内容
+	echo -e '\ndefine Package/$(PKG_NAME)/postinst\n#!/bin/sh\nchmod 755 "$${IPKG_INSTROOT}/etc/init.d/frpc" >/dev/null 2>&1\nln -sf "../init.d/frpc" \\\n	"$${IPKG_INSTROOT}/etc/rc.d/S99frpc" >/dev/null 2>&1\nexit 0\nendef' >> $FRPC_LUCI_PATH/Makefile
+	
+	# 检验一下内容是否添加成功
+	grep -q 'define Package/$(PKG_NAME)/postinst' $FRPC_LUCI_PATH/Makefile
+	if [ $? -eq 0 ]; then
+		echo "postinst 内容添加成功"
+	else
+		echo "postinst 内容添加失败"
+	fi
 
 	cd $PKG_PATH && echo "frpc config has been set!"
 fi
+
 
 #预置HomeProxy数据
 if [ -d *"homeproxy"* ]; then
@@ -90,7 +82,22 @@ if [ -d *"homeproxy"* ]; then
 	sed 's/^\.//g' direct.txt > china_list.txt ; sed 's/^\.//g' gfw.txt > gfw_list.txt
 	mv -f ./{china_*,gfw_list}.{ver,txt} ../$HP_PATH/resources/
 
+	# 增加更新规则库时，添加内置frp域名为直连
+	# ../$HP_PATH/scripts/update_resources.sh
+	# 先找到行号
+	line_num=$(grep -n 'sed -i "s/^\.//g" "$RESOURCES_DIR/china_list.txt"' ../$HP_PATH/scripts/update_resources.sh | cut -d: -f1)
+	# 然后在该行后追加内容
+	sed -i "${line_num}a\		\&\& \\\n		echo \"2026178.xyz\" >> \"\$RESOURCES_DIR/china_list.txt\"" ../$HP_PATH/scripts/update_resources.sh
+
 	cd .. && rm -rf ./$HP_RULE/
+
+  # 验证修改结果
+	echo "验证 homeproxy update_resources.sh 修改结果："
+	echo "------------------------"
+	echo "找到的目标行号：$line_num"
+	echo "修改后的相关行内容："
+	sed -n "${line_num},$((line_num+1))p" ../$HP_PATH/scripts/update_resources.sh
+	echo "------------------------"
 
 	cd $PKG_PATH && echo "homeproxy date has been updated!"
 fi
@@ -106,11 +113,18 @@ fi
 
 # 	cd $PKG_PATH && echo "theme-argon has been fixed!"
 # fi
-ARGON_CONFIG_DRV="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
-if [ -f "ARGON_CONFIG_DRV" ]; then
+ARGON_CONFIG_FILE="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
+if [ -f "$ARGON_CONFIG_FILE" ]; then
 	echo " "
  
-	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_DRV
+	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_FILE
+
+	# 验证修改结果 - 直接打印文件内容
+	echo "验证argon配置修改结果："
+	echo "------------------------"
+	echo "文件内容："
+	cat $ARGON_CONFIG_FILE
+	echo "------------------------"
 
 	cd $PKG_PATH && echo "argon-config has been set!"
 fi
