@@ -82,21 +82,6 @@ if [ -d *"homeproxy"* ]; then
 	sed 's/^\.//g' direct.txt > china_list.txt ; sed 's/^\.//g' gfw.txt > gfw_list.txt
 	mv -f ./{china_*,gfw_list}.{ver,txt} ../$HP_PATH/resources/
 
-	# 增加更新规则库时，添加内置frp域名为直连
-	# 先找到行号
-	line_num=$(grep -n "china_list.txt" "../$HP_PATH/scripts/update_resources.sh" | cut -d: -f1)
-	# 然后在该行后追加内容
-	sed -i "${line_num}a\\t\\t\\&\\& \\\\n\\t\\techo \\\"2026178.xyz\\\" >> \\\"\\\$RESOURCES_DIR/china_list.txt\\\"" "../$HP_PATH/scripts/update_resources.sh"
-
-
-  # 验证修改结果
-	echo "验证 homeproxy update_resources.sh 修改结果："
-	echo "------------------------"
-	echo "找到的目标行号：$line_num"
-	echo "修改后的相关行内容："
-	sed -n "${line_num},$((line_num+1))p" "../$HP_PATH/scripts/update_resources.sh"
-	echo "------------------------"
-
 	cd .. && rm -rf ./$HP_RULE/
 	cd $PKG_PATH && echo "homeproxy date has been updated!"
 fi
