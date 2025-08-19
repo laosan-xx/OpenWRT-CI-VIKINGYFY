@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       CONFIG:
+        description: '请选择编译配置'
         default: 'MEDIATEK'
         required: true
         type: choice
@@ -22,6 +23,7 @@ on:
           - IPQ807X-WIFI-NO
           - TEST
       SOURCE:
+        description: '请选择源码'
         default: 'VIKINGYFY/immortalwrt'
         required: true
         type: choice
@@ -31,15 +33,17 @@ on:
           - LiBwrt/openwrt-6.x
           - qosmio/openwrt-ipq
       BRANCH:
+        description: '请选择分支'
         default: 'main'
         required: true
         type: string
       PACKAGE:
+        description: '自定义插件（可选）'
         required: false
         type: string
       TEST:
         description: '仅输出配置文件，不编译固件。'
-        default: 'true'
+        default: true
         required: true
         type: boolean
 
