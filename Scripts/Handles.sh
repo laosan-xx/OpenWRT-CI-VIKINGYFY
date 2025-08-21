@@ -87,49 +87,50 @@ if [ -d *"homeproxy"* ]; then
 fi
 
 #修改argon主题字体和颜色
-# if [ -d *"luci-theme-argon"* ]; then
-# 	echo " "
-
-# 	cd ./luci-theme-argon/
-
-# 	# sed -i "/font-weight:/ { /important/! { /\/\*/! s/:.*/: var(--font-weight);/ } }" $(find ./luci-theme-argon -type f -iname "*.css")
-# 	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.2'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" ./luci-app-argon-config/root/etc/config/argon
-
-# 	cd $PKG_PATH && echo "theme-argon has been fixed!"
-# fi
-ARGON_CONFIG_FILE="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
-if [ -f "$ARGON_CONFIG_FILE" ]; then
+if [ -d *"luci-theme-argon"* ]; then
 	echo " "
- 
-	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_FILE
 
-	# 验证修改结果 - 直接打印文件内容
-	echo "验证argon配置修改结果："
-	echo "------------------------"
-	echo "文件内容："
-	cat $ARGON_CONFIG_FILE
-	echo "------------------------"
+	cd ./luci-theme-argon/
 
-	cd $PKG_PATH && echo "argon-config has been set!"
+	sed -i "/font-weight:/ { /important/! { /\/\*/! s/:.*/: var(--font-weight);/ } }" $(find ./luci-theme-argon -type f -iname "*.css")
+	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.2'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" ./luci-app-argon-config/root/etc/config/argon
+
+	cd $PKG_PATH && echo "theme-argon has been fixed!"
 fi
+
+# ARGON_CONFIG_FILE="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
+# if [ -f "$ARGON_CONFIG_FILE" ]; then
+# 	echo " "
+ 
+# 	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_FILE
+
+# 	# 验证修改结果 - 直接打印文件内容
+# 	echo "验证argon配置修改结果："
+# 	echo "------------------------"
+# 	echo "文件内容："
+# 	cat $ARGON_CONFIG_FILE
+# 	echo "------------------------"
+
+# 	cd $PKG_PATH && echo "argon-config has been set!"
+# fi
 
 #修复主题loading.gif缺失问题
-ARGON_STATIC_PATH="../feeds/luci/themes/luci-theme-argon/htdocs/luci-static"
-ARGON_ICON_PATH="$ARGON_STATIC_PATH/resources/icons"
-LOADING_GIF="$ARGON_ICON_PATH/loading.gif"
-LOADING_URL="https://raw.githubusercontent.com/laosan-xx/OpenWRT-CI-VIKINGYFY/refs/heads/main/loading.gif"
+# ARGON_STATIC_PATH="../feeds/luci/themes/luci-theme-argon/htdocs/luci-static"
+# ARGON_ICON_PATH="$ARGON_STATIC_PATH/resources/icons"
+# LOADING_GIF="$ARGON_ICON_PATH/loading.gif"
+# LOADING_URL="https://raw.githubusercontent.com/laosan-xx/OpenWRT-CI-VIKINGYFY/refs/heads/main/loading.gif"
 
-if [ ! -f "$LOADING_GIF" ]; then
-    echo "loading.gif 不存在，开始创建目录并下载..."
-    mkdir -p "$ARGON_ICON_PATH"
-    wget -qO "$LOADING_GIF" "$LOADING_URL"
-fi
+# if [ ! -f "$LOADING_GIF" ]; then
+#     echo "loading.gif 不存在，开始创建目录并下载..."
+#     mkdir -p "$ARGON_ICON_PATH"
+#     wget -qO "$LOADING_GIF" "$LOADING_URL"
+# fi
 
-if [ -f "$LOADING_GIF" ]; then
-    echo "loading.gif 已存在！"
-else
-    echo "loading.gif 仍然不存在，下载失败！"
-fi
+# if [ -f "$LOADING_GIF" ]; then
+#     echo "loading.gif 已存在！"
+# else
+#     echo "loading.gif 仍然不存在，下载失败！"
+# fi
 
 #修改qca-nss-drv启动顺序
 NSS_DRV="../feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
