@@ -38,26 +38,24 @@ sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
 #修改默认主机名
 sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
 
-#默认禁用wan6接口，需要使用请手动开启
-NETWORK_CFG_FILE="./package/base-files/files/etc/config/network"
-if [ -f "$NETWORK_CFG_FILE" ]; then
-	# 检查是否存在wan6接口配置
-	if grep -q "config interface 'wan6'" "$NETWORK_CFG_FILE"; then
-		echo "发现 wan6 接口定义"
-		# 检查是否已经存在disabled选项，如果不存在则添加
-		if ! grep -A 10 "config interface 'wan6'" "$NETWORK_CFG_FILE" | grep -q "option disabled"; then
-			echo "插入 disabled '1' 选项。"
-			sed -i "/config interface 'wan6'/a\\\toption disabled '1'" "$NETWORK_CFG_FILE"
-		fi
-		# 检查是否已经存在norelease选项，如果不存在则添加
-		if ! grep -A 10 "config interface 'wan6'" "$NETWORK_CFG_FILE" | grep -q "option norelease"; then
-			echo "插入 norelease '1' 选项。"
-			sed -i "/config interface 'wan6'/a\\\toption norelease '1'" "$NETWORK_CFG_FILE"
-		fi
-	fi
-	else
-		echo "未发现 wan6 接口定义"
+#默认禁用wan6接口，首次启动时使用uci命令禁用
+UCI_DEFAULTS_DIR="./package/base-files/files/etc/uci-defaults"
+WAN6_DISABLE_SCRIPT="$UCI_DEFAULTS_DIR/99-disable-wan6"
+mkdir -p "$UCI_DEFAULTS_DIR"
+cat > "$WAN6_DISABLE_SCRIPT" << 'EOF'
+#!/bin/sh
+# 禁用wan6接口
+if uci get network.wan6 >/dev/null 2>&1; then
+	uci set network.wan6.disabled='1'
+	uci commit network
+	# 重新加载网络配置以应用更改
+	/etc/init.d/network reload 2>/dev/null || true
+	echo "wan6接口已禁用"
 fi
+exit 0
+EOF
+chmod +x "$WAN6_DISABLE_SCRIPT"
+echo "已创建wan6禁用脚本: $WAN6_DISABLE_SCRIPT"
 
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
