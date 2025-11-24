@@ -2,6 +2,7 @@
 
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
 FEEDS_PATH="$GITHUB_WORKSPACE/wrt/feeds/"
+OTHER_PATH="$GITHUB_WORKSPACE/Others/"
 
 #预置Frpc数据
 FRPC_CONFIG_FILE="../feeds/packages/net/frp/files/frpc.config"
@@ -44,6 +45,10 @@ if [ -f "$FRPC_CONFIG_FILE" ]; then
 	echo "web配置："
 	grep -A 5 "config conf 'web'" $FRPC_CONFIG_FILE
 	echo "------------------------"
+
+	# 拷贝lua控制文件并删除静态目录json,将菜单声明完全交由控制器处理
+	rm $FRPC_LUCI_PATH/root/usr/share/luci/menu.d/luci-app-frpc.json
+	cp -r $OTHER_PATH/frpc/. $FRPC_LUCI_PATH/
 
 	# 将 FRPC_INIT_FILE 文件复制到 $FRPC_ROOT_PATH/etc/init.d/
 	mkdir -p $FRPC_LUCI_PATH/root/etc/init.d
