@@ -1,7 +1,6 @@
 #!/bin/bash
 
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
-FEEDS_PATH="$GITHUB_WORKSPACE/wrt/feeds/"
 OTHER_PATH="$GITHUB_WORKSPACE/Others/"
 
 #预置Frpc数据
@@ -91,51 +90,53 @@ if [ -d *"homeproxy"* ]; then
 	cd $PKG_PATH && echo "homeproxy date has been updated!"
 fi
 
-#修改argon主题字体和颜色
-# if [ -d *"luci-theme-argon"* ]; then
-# 	echo " "
+# 解决wan口地址与lan口冲突
+FILES_PATH="$GITHUB_WORKSPACE/wrt/files/"
+mkdir -p $FILES_PATH/etc/hotplug.d/iface
+cat << 'EOF' > $FILES_PATH/etc/hotplug.d/iface/90-autolanip
+#!/bin/sh
+[ "$INTERFACE" = "wan" ] && [ "$ACTION" = "ifup" ] || exit 0
 
-# 	cd ./luci-theme-argon/
+WAN_IP="$IPADDR"
+LAN_IFACE="lan"
 
-# 	# sed -i "/font-weight:/ { /important/! { /\/\*/! s/:.*/: var(--font-weight);/ } }" $(find ./luci-theme-argon -type f -iname "*.css")
-# 	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.2'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" ./luci-app-argon-config/root/etc/config/argon
+if ! uci get network.$LAN_IFACE.proto &>/dev/null || [ "$(uci get network.$LAN_IFACE.proto)" != "static" ]; then
+    exit 0
+fi
 
-# 	cd $PKG_PATH && echo "theme-argon has been fixed!"
-# fi
+CURRENT_LAN_IP=$(uci get network.$LAN_IFACE.ipaddr)
+WAN_PREFIX=$(echo "$WAN_IP" | cut -d. -f1-3)
+LAN_PREFIX=$(echo "$CURRENT_LAN_IP" | cut -d. -f1-3)
 
-# ARGON_CONFIG_FILE="../feeds/luci/applications/luci-app-argon-config/root/etc/config/argon"
-# if [ -f "$ARGON_CONFIG_FILE" ]; then
-# 	echo " "
- 
-# 	sed -i "s/primary '.*'/primary '#31a1a1'/; s/'0.3'/'0.5'/; s/'none'/'bing'/; s/'600'/'normal'/" $ARGON_CONFIG_FILE
+if [ "$WAN_PREFIX" != "$LAN_PREFIX" ]; then
+    exit 0
+fi
 
-# 	# 验证修改结果 - 直接打印文件内容
-# 	echo "验证argon配置修改结果："
-# 	echo "------------------------"
-# 	echo "文件内容："
-# 	cat $ARGON_CONFIG_FILE
-# 	echo "------------------------"
+logger -t "AutoLANIP" "Conflict detected: WAN ($WAN_IP) vs LAN ($CURRENT_LAN_IP). Resolving..."
 
-# 	cd $PKG_PATH && echo "argon-config has been set!"
-# fi
+ALTERNATE_OCTETS="2 3 4 5 6 7 8 9 10"
+NEW_LAN_IP=""
+for OCTET in $ALTERNATE_OCTETS; do
+    NEW_PREFIX="192.168.$OCTET"
+    if [ "$NEW_PREFIX" != "$WAN_PREFIX" ]; then
+        NEW_LAN_IP="${NEW_PREFIX}.1"
+        break
+    fi
+done
 
-#修复主题loading.gif缺失问题
-# ARGON_STATIC_PATH="../feeds/luci/themes/luci-theme-argon/htdocs/luci-static"
-# ARGON_ICON_PATH="$ARGON_STATIC_PATH/resources/icons"
-# LOADING_GIF="$ARGON_ICON_PATH/loading.gif"
-# LOADING_URL="https://raw.githubusercontent.com/laosan-xx/OpenWRT-CI-VIKINGYFY/refs/heads/main/loading.gif"
+if [ -n "$NEW_LAN_IP" ]; then
+    logger -t "AutoLANIP" "Changing LAN IP to $NEW_LAN_IP"
+    uci set network.$LAN_IFACE.ipaddr="$NEW_LAN_IP"
+    uci commit network
+    /etc/init.d/network restart
+fi
+exit 0
+EOF
+test -f $FILES_PATH/etc/hotplug.d/iface/90-autolanip && echo "90-autolanip文件复制成功" || echo "90-autolanip文件复制失败"
+chmod +x $FILES_PATH/etc/hotplug.d/iface/90-autolanip
 
-# if [ ! -f "$LOADING_GIF" ]; then
-#     echo "loading.gif 不存在，开始创建目录并下载..."
-#     mkdir -p "$ARGON_ICON_PATH"
-#     wget -qO "$LOADING_GIF" "$LOADING_URL"
-# fi
-
-# if [ -f "$LOADING_GIF" ]; then
-#     echo "loading.gif 已存在！"
-# else
-#     echo "loading.gif 仍然不存在，下载失败！"
-# fi
+echo "已添加LAN IP冲突修复脚本!"	
+# --- 结束：自动 LAN IP 冲突修复脚本 ---
 
 #修改qca-nss-drv启动顺序
 NSS_DRV="../feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
