@@ -90,83 +90,24 @@ if [ -d *"homeproxy"* ]; then
 	cd $PKG_PATH && echo "homeproxy date has been updated!"
 fi
 
-# 解决wan口地址与lan口冲突
-FILES_PATH="$GITHUB_WORKSPACE/wrt/files/"
-mkdir -p $FILES_PATH/etc/hotplug.d/iface
-cat << 'EOF' > $FILES_PATH/etc/hotplug.d/iface/90-autolanip
-#!/bin/sh
-# /etc/hotplug.d/iface/90-autolanip - Optimized
+#解决wan口地址与lan口冲突
+HOTPLUG_IFACE_DIR="$GITHUB_WORKSPACE/wrt/files/etc/hotplug.d/iface"
+SRC_FILE="$OTHER_PATH/90-autolanip"
+DEST_FILE="$HOTPLUG_IFACE_DIR/90-autolanip"
 
-# 1. 检查条件：必须是 'wan' 接口的 'ifup' 事件
-[ "$INTERFACE" = "wan" ] && [ "$ACTION" = "ifup" ] || exit 0
+mkdir -p "$HOTPLUG_IFACE_DIR" && \
+	echo "目录已就绪：$HOTPLUG_IFACE_DIR"
 
-# 2. 获取 WAN IP 地址 (使用 ubus 作为最可靠的方法)
-# 使用 jsonfilter 工具从 netifd 获取 WAN 接口的第一个 IPv4 地址
-WAN_IP=$(ubus call network.interface.wan status | jsonfilter -e '@["ipv4-address"][0].address')
-
-# 检查是否成功获取 IP
-if [ -z "$WAN_IP" ]; then
-    logger -t "AutoLANIP" "Error: WAN interface up, but failed to get IPv4 address (ubus)."
-    exit 0
-fi
-
-# 3. 检查 LAN 接口配置
-LAN_IFACE="lan"
-
-# 检查 LAN 接口是否存在且协议为 static
-if [ "$(uci get network.$LAN_IFACE.proto 2>/dev/null)" != "static" ]; then
-    exit 0
-fi
-
-# 获取当前 LAN IP 和网络前缀
-CURRENT_LAN_IP=$(uci get network.$LAN_IFACE.ipaddr)
-WAN_PREFIX=$(echo "$WAN_IP" | cut -d. -f1-3)
-LAN_PREFIX=$(echo "$CURRENT_LAN_IP" | cut -d. -f1-3)
-
-# 4. 检查前缀是否冲突
-if [ "$WAN_PREFIX" != "$LAN_PREFIX" ]; then
-    # 无冲突，正常退出
-    exit 0
-fi
-
-# ==========================================================
-# 冲突处理流程 (日志保留)
-# ==========================================================
-logger -t "AutoLANIP" "Conflict detected: WAN ($WAN_IP) vs LAN ($CURRENT_LAN_IP). Resolving..."
-
-ALTERNATE_OCTETS="2 3 4 5 6 7 8 9 10 20 30 40 50"
-NEW_LAN_IP=""
-
-# 尝试寻找新的不冲突 IP
-for OCTET in $ALTERNATE_OCTETS; do
-    NEW_PREFIX="192.168.$OCTET"
-    # 如果新的前缀与 WAN 前缀不冲突，则选中
-    if [ "$NEW_PREFIX" != "$WAN_PREFIX" ]; then
-        NEW_LAN_IP="${NEW_PREFIX}.1"
-        break
-    fi
-done
-
-# 5. 执行配置更改和重启网络
-if [ -n "$NEW_LAN_IP" ]; then
-    logger -t "AutoLANIP" "Changing LAN IP to $NEW_LAN_IP. Applying changes..."
-    
-    uci set network.$LAN_IFACE.ipaddr="$NEW_LAN_IP"
-    uci commit network
-    
-    # 重启网络服务以使新的 LAN IP 生效
-    /etc/init.d/network restart
+if [ ! -f "$SRC_FILE" ]; then
+	echo "源文件不存在: $SRC_FILE" >&2
 else
-    logger -t "AutoLANIP" "Warning: Conflict detected, but no suitable alternative IP found (Tried 192.168.2-10). No change made."
+	if cp -f "$SRC_FILE" "$DEST_FILE"; then
+		chmod +x "$DEST_FILE"
+		echo "LAN IP 冲突修复脚本添加完成：$DEST_FILE"
+	else
+		echo "脚本复制失败: $SRC_FILE → $DEST_FILE" >&2
+	fi
 fi
-
-exit 0
-EOF
-test -f $FILES_PATH/etc/hotplug.d/iface/90-autolanip && echo "90-autolanip文件复制成功" || echo "90-autolanip文件复制失败"
-chmod +x $FILES_PATH/etc/hotplug.d/iface/90-autolanip
-
-echo "已添加LAN IP冲突修复脚本!"	
-# --- 结束：自动 LAN IP 冲突修复脚本 ---
 
 #修改qca-nss-drv启动顺序
 NSS_DRV="../feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
