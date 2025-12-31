@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# --- 1. 函数: 禁用 IPv6 WAN 接口 ---
+disable_wan6() {
+  if uci -q get network.wan6 >/dev/null; then
+    uci set network.wan6.disabled='1'
+    uci commit network
+    /etc/init.d/network reload 2>/dev/null || true
+    echo "wan6接口已禁用"
+  fi
+}
+
+# ----------------------------------------
+# 执行主程序
+# ----------------------------------------
+disable_wan6
+
+exit 0

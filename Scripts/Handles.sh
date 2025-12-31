@@ -1,6 +1,26 @@
 #!/bin/bash
 
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
+OTHER_PATH="$GITHUB_WORKSPACE/Others/"
+
+#解决wan口地址与lan口冲突
+HOTPLUG_IFACE_DIR="$GITHUB_WORKSPACE/wrt/files/etc/hotplug.d/iface"
+SRC_FILE="$OTHER_PATH/90-autolanip"
+DEST_FILE="$HOTPLUG_IFACE_DIR/90-autolanip"
+
+mkdir -p "$HOTPLUG_IFACE_DIR" && \
+	echo "目录已就绪：$HOTPLUG_IFACE_DIR"
+
+if [ ! -f "$SRC_FILE" ]; then
+	echo "源文件不存在: $SRC_FILE" >&2
+else
+	if cp -f "$SRC_FILE" "$DEST_FILE"; then
+		chmod +x "$DEST_FILE"
+		echo "LAN IP 冲突修复脚本添加完成：$DEST_FILE"
+	else
+		echo "脚本复制失败: $SRC_FILE → $DEST_FILE" >&2
+	fi
+fi
 
 #预置HomeProxy数据
 if [ -d *"homeproxy"* ]; then
@@ -11,7 +31,7 @@ if [ -d *"homeproxy"* ]; then
 
 	rm -rf ./$HP_PATH/resources/*
 
-	git clone -q --depth=1 --single-branch --branch "release" "https://github.com/Loyalsoldier/surge-rules.git" ./$HP_RULE/
+	git clone -q --depth=1 --single-branch --branch "release" "https://github.com/laosan-xx/surge-rules.git" ./$HP_RULE/
 	cd ./$HP_RULE/ && RES_VER=$(git log -1 --pretty=format:'%s' | grep -o "[0-9]*")
 
 	echo $RES_VER | tee china_ip4.ver china_ip6.ver china_list.ver gfw_list.ver
