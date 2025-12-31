@@ -3,6 +3,17 @@
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
 OTHER_PATH="$GITHUB_WORKSPACE/Others/"
 
+#frpc备用
+if [ -d *"my-frp"* ]; then
+	echo " "
+
+	cd ./my-frp/
+
+	sed -i '/config conf '\''common'\''/,/^$/s/option server_port 5443/option server_port 5444/' ./files/frpc.config
+
+	cd $PKG_PATH && echo "frpc port has been fixed!"
+fi
+
 #解决wan口地址与lan口冲突
 HOTPLUG_IFACE_DIR="$GITHUB_WORKSPACE/wrt/files/etc/hotplug.d/iface"
 SRC_FILE="$OTHER_PATH/90-autolanip"
