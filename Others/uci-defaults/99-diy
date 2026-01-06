@@ -10,9 +10,47 @@ disable_wan6() {
   fi
 }
 
+# --- 2. 函数: 添加usb网卡配置 ---
+add_usb_net_config() {
+  # 1. 配置网络接口 (网卡一般识别为 usb0 / eth2)
+  if uci -q get network.USB0 >/dev/null; then
+    uci set network.USB0='interface'
+    uci set network.USB0.device='usb0'
+    uci set network.USB0.proto='dhcp'
+    uci commit network
+    echo "USB0接口已添加"
+  fi
+  if uci -q get network.USB1 >/dev/null; then
+    uci set network.USB1='interface'
+    uci set network.USB1.device='eth2'
+    uci set network.USB1.proto='dhcp'
+    uci commit network
+    echo "USB1接口已添加"
+  fi
+
+  # 2. 将新接口加入防火墙的 'wan' 区域
+  # 首先找到防火墙中名为 'wan' 的 zone
+  zone_index=0
+  while [ -n "$(uci get firewall.@zone[$zone_index].name 2>/dev/null)" ]; do
+      if [ "$(uci get firewall.@zone[$zone_index].name)" = "wan" ]; then
+          # 将 USB0/USB1 添加到该区域的 network 列表中
+          uci add_list firewall.@zone[$zone_index].network='USB0'
+          uci add_list firewall.@zone[$zone_index].network='USB1'
+          break
+      fi
+      zone_index=$((zone_index + 1))
+  done
+
+  # 3. 重启网络和防火墙
+  uci commit firewall
+  /etc/init.d/network reload 2>/dev/null || true
+  /etc/init.d/firewall restart 2>/dev/null || true
+  echo "网络和防火墙配置完成"
+}
+
 # ----------------------------------------
 # 执行主程序
 # ----------------------------------------
 disable_wan6
-
+add_usb_net_config
 exit 0

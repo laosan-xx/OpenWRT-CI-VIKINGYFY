@@ -57,6 +57,25 @@ else
 	echo "未找到自定义 uci-defaults 脚本，跳过同步"
 fi
 
+# 自定义 root 脚本同步（Others/root-scripts → package/base-files/files/root）
+ROOT_SCRIPTS_DIR="./package/base-files/files/root"
+CUSTOM_ROOT_SCRIPTS="${GITHUB_WORKSPACE:+$GITHUB_WORKSPACE/Others/root-scripts}"
+CUSTOM_ROOT_SCRIPTS="${CUSTOM_ROOT_SCRIPTS:-../Others/root-scripts}"
+
+mkdir -p "$ROOT_SCRIPTS_DIR"
+
+if [ -d "$CUSTOM_ROOT_SCRIPTS" ] && find "$CUSTOM_ROOT_SCRIPTS" -maxdepth 1 -type f | grep -q .; then
+	while IFS= read -r FILE; do
+		BASENAME=$(basename "$FILE")
+		cp -f "$FILE" "$ROOT_SCRIPTS_DIR/$BASENAME"
+		chmod +x "$ROOT_SCRIPTS_DIR/$BASENAME"
+	done < <(find "$CUSTOM_ROOT_SCRIPTS" -maxdepth 1 -type f)
+
+	echo "已同步自定义 root 脚本到: $ROOT_SCRIPTS_DIR"
+else
+	echo "未找到自定义 root 脚本，跳过同步"
+fi
+
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
