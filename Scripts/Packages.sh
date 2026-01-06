@@ -53,7 +53,7 @@ UPDATE_PACKAGE "kucat-config" "sirpdboy/luci-app-kucat-config" "master"
 
 UPDATE_PACKAGE "frp" "laosan-xx/my-frp" "main"
 # UPDATE_PACKAGE "frpc" "laosan-xx/luci-app-frpc" "main"
-UPDATE_PACKAGE "homeproxy" "laosan-xx/homeproxy" "main"
+UPDATE_PACKAGE "homeproxy" "laosan-xx/homeproxy" "master"
 UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
