@@ -22,6 +22,21 @@ else
 	fi
 fi
 
+#如果有选ddnsto，删除ddnsto菜单栏一级菜单DDNSTO（Dev）这个菜单
+if [ -d *"luci-app-ddnsto"* ]; then
+	echo " "
+
+	sed -i '/entry({"admin", "ddnsto_dev"},/d' "./luci-app-ddnsto/luasrc/controller/ddnsto.lua"
+
+  # 删除 action_ddnsto_dev 函数
+  # 使用 sed 删除从 "function action_ddnsto_dev()" 到下一个独立的 "end" 之间的所有行
+  # 注意：这里使用 /^function action_ddnsto_dev()/,/^[[:space:]]*end[[:space:]]*$/ 匹配
+  # 但在某些 sed 版本中，需要更精确的匹配
+  sed -i '/^function action_ddnsto_dev()/,/^end$/d' "./luci-app-ddnsto/luasrc/controller/ddnsto.lua"
+
+	cd $PKG_PATH && echo "DDNSTO(Dev) has been removed!"
+fi
+
 #预置HomeProxy数据
 if [ -d *"homeproxy"* ]; then
 	echo " "
