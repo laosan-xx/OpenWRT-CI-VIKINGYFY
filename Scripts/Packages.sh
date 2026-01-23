@@ -122,5 +122,5 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 UPDATE_VERSION "geoview"
 UPDATE_VERSION "sing-box"
-UPDATE_VERSION "xray"
+UPDATE_VERSION "xray-core"
 #UPDATE_VERSION "tailscale"
