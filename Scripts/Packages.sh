@@ -51,7 +51,7 @@ UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
 UPDATE_PACKAGE "kucat" "sirpdboy/luci-theme-kucat" "master"
 UPDATE_PACKAGE "kucat-config" "sirpdboy/luci-app-kucat-config" "master"
 
-UPDATE_PACKAGE "v2ray-geodata" "laosan-xx/my-v2ray-geodata" "master"
+# UPDATE_PACKAGE "v2ray-geodata" "laosan-xx/my-v2ray-geodata" "master"
 UPDATE_PACKAGE "frp" "laosan-xx/my-frp" "main"
 # UPDATE_PACKAGE "frpc" "laosan-xx/luci-app-frpc" "main"
 UPDATE_PACKAGE "homeproxy" "laosan-xx/homeproxy" "master"
