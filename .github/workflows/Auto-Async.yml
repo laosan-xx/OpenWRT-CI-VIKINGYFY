@@ -2,6 +2,7 @@ name: Auto-Async
 
 on:
   push:
+  workflow_dispatch:
   schedule:
     #自动同步：每天早上1点
     - cron:  0 17 * * *
