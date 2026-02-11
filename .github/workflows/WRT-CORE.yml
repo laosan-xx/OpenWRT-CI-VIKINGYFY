@@ -148,7 +148,14 @@ jobs:
         run: |
           cd ./wrt/
 
+          sed -i '1i\src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main' feeds.conf.default
+          sed -i '1i\src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall.git;main' feeds.conf.default
+
           ./scripts/feeds update -a
+
+          rm -rf feeds/packages/lang/golang
+          git clone --depth=1 https://github.com/sbwml/packages_lang_golang -b 25.x feeds/packages/lang/golang
+
           ./scripts/feeds install -a
 
       - name: Custom Packages
@@ -178,6 +185,42 @@ jobs:
           cd ./wrt/
 
           make download -j$(nproc)
+
+      - name: Remove Shadowsocks and Rust components
+        run: |
+          cd ./wrt/
+
+          # 1. 彻底关闭 PassWall 内的组件开关
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Client=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Client is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Server=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Server is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Client=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Client is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Server=y/# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Server is not set/' .config
+
+          # 2. 彻底关闭底层所有相关包
+          sed -i 's/CONFIG_PACKAGE_shadowsocks-libev.*=y/# CONFIG_PACKAGE_shadowsocks-libev is not set/' .config
+          sed -i 's/CONFIG_PACKAGE_shadowsocks-rust.*=y/# CONFIG_PACKAGE_shadowsocks-rust is not set/' .config
+
+          # 3. 额外保险：强制在文件末尾注入禁用指令，防止被依赖关系反选
+          echo "CONFIG_PACKAGE_shadowsocks-libev-ss-local=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-libev-ss-redir=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-libev-ss-server=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-rust-sslocal=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-rust-ssmanager=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-rust-ssserver=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-rust-ssservice=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocks-rust-ssurl=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocksr-libev-ssr-local=n" >> .config
+          echo "CONFIG_PACKAGE_shadowsocksr-libev-ssr-redir=n" >> .config
+
+          # 最后应用配置
+          make defconfig -j$(nproc)
+
+      - name: Verify Removal
+        run: |
+          cd ./wrt/
+          grep "shadowsocks" .config || echo "Successfully removed!"
 
       - name: Compile Firmware
         if: env.WRT_TEST != 'true'

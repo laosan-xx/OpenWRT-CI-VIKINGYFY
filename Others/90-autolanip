@@ -57,9 +57,18 @@ if [ -n "$NEW_LAN_IP" ]; then
     
     uci set network.$LAN_IFACE.ipaddr="$NEW_LAN_IP"
     uci commit network
-    
+
+    # 查看是否有frpc程序
+    if [ -f "/usr/bin/frpc" ]; then
+        sed -i "s/^[[:space:]]*option local_ip .*/	option local_ip ${NEW_LAN_IP}/" /etc/config/frpc
+        sed -i "s/^[[:space:]]*option local_ip .*/	option local_ip ${NEW_LAN_IP}/" /var/etc/frpc.ini
+    fi
     # 重启网络服务以使新的 LAN IP 生效
     /etc/init.d/network restart
+    # 网络重启后，重启frpc服务以使用新的LAN IP
+    if [ -f "/usr/bin/frpc" ]; then
+        (killall frpc 2>/dev/null; sleep 3; /usr/bin/frpc -c /var/etc/frpc.ini) &
+    fi
 else
     logger -t "AutoLANIP" "Warning: Conflict detected, but no suitable alternative IP found (Tried 192.168.2-10). No change made."
 fi
