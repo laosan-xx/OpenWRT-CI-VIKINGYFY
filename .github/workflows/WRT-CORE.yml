@@ -55,6 +55,13 @@ env:
   WRT_SOURCE: ${{inputs.WRT_SOURCE}}
   WRT_PACKAGE: ${{inputs.WRT_PACKAGE}}
   WRT_TEST: ${{inputs.WRT_TEST}}
+  WRT_DATE: ""
+  WRT_MARK: ""
+  WRT_INFO: ""
+  WRT_TARGET: ""
+  WRT_HASH: ""
+  WRT_KVER: ""
+  WRT_LIST: ""
 
 jobs:
   core:
