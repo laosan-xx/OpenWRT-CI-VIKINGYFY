@@ -142,3 +142,13 @@ if [ -d *"luci-app-netspeedtest"* ]; then
 
 	cd $PKG_PATH && echo "netspeedtest has been fixed!"
 fi
+
+#修复mbedtls导致编译失败问题
+MBEDTLS_FILE="./libs/mbedtls/Makefile"
+if [ -f "$MBEDTLS_FILE" ]; then
+	echo " "
+
+	sed -i 's/TARGET_CFLAGS := \$(filter-out -O%,\$(TARGET_CFLAGS)) -Wno-unterminated-string-initialization/& -Wno-error -Wno-error=attributes -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0/' $MBEDTLS_FILE
+
+	cd $PKG_PATH && echo "mbedtls has been fixed!"
+fi
