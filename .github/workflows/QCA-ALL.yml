@@ -26,6 +26,21 @@ permissions: write-all
 
 #CI任务
 jobs:
+  trigger-second:
+    name: Trigger Second Branch
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+    steps:
+      - name: Trigger QCA-ALL on second branch
+        run: |
+          gh workflow run QCA-ALL.yml \
+            --ref second \
+            --field PACKAGE="${{inputs.PACKAGE}}" \
+            --field TEST="${{inputs.TEST}}"
+        env:
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GH_REPO: ${{github.repository}}
+
   config:
     name: ${{matrix.CONFIG}}
     strategy:
