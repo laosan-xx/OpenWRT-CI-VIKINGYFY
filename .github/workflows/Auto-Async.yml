@@ -26,6 +26,62 @@ jobs:
           git pull --unshallow
           git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
           git fetch upstream
-          git checkout main
-          git merge --no-edit upstream/main
+
+          # 记录合并前本地Config目录下特殊文件中=y的设备列表
+          for f in Config/IPQ*.txt Config/MEDIATEK-*.txt Config/ROCKCHIP.txt; do
+            if [ -f "$f" ]; then
+              mkdir -p /tmp/local_devices
+              grep -E '^CONFIG_TARGET_DEVICE_.*=y$' "$f" | sed 's/=y$//' > "/tmp/local_devices/$(echo "$f" | tr '/' '_')"
+            fi
+          done
+
+          # 合并上游，冲突时优先采用传入的更改（theirs），先不提交
+          git merge -X theirs --no-commit upstream/main
+
+          # 对Config下的特殊文件进行处理：保留本地=y的设备，其余设备设为n
+          for f in Config/IPQ*.txt Config/MEDIATEK-*.txt Config/ROCKCHIP.txt; do
+            if [ -f "$f" ]; then
+              local_key="/tmp/local_devices/$(echo "$f" | tr '/' '_')"
+              if [ -f "$local_key" ]; then
+                # 处理文件：对于CONFIG_TARGET_DEVICE_行，只在本地=y时保留=y，否则设为=n
+                awk '
+                BEGIN {
+                  while ((getline line < "'"$local_key"'") > 0) {
+                    if (line != "") local_set[line] = 1
+                  }
+                  close("'"$local_key"'")
+                }
+                /^CONFIG_TARGET_DEVICE_.*=y$/ {
+                  key = $0
+                  sub(/=y$/, "", key)
+                  if (key in local_set) {
+                    print key "=y"
+                  } else {
+                    print key "=n"
+                  }
+                  next
+                }
+                /^CONFIG_TARGET_DEVICE_.*=n$/ {
+                  # 如果上游有=n但本地是=y，保留=y
+                  key = $0
+                  sub(/=n$/, "", key)
+                  if (key in local_set) {
+                    print key "=y"
+                  } else {
+                    print $0
+                  }
+                  next
+                }
+                { print }
+                ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+              fi
+            fi
+          done
+
+          # 清理临时文件
+          rm -rf /tmp/local_devices
+
+          # 一次性提交：合并 + 配置调整
+          git add -A
+          git commit -m "sync: 同步上游配置"
           git push origin main
