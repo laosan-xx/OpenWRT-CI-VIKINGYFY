@@ -2,12 +2,12 @@ name: Auto-Async
 
 on:
   push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
     #自动同步：每天早上1点
     - cron:  0 17 * * *
-  watch:
-    types: [started]
 
 permissions:
   contents: write
@@ -16,14 +16,15 @@ permissions:
 jobs:
   merge:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event.repository.owner.id == github.event.sender.id
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v2.3.5
+        with:
+          fetch-depth: 0
       - name: Merge upstream
         run: |
           git config --global user.name 'laosan-xx'
           git config --global user.email 'xxhy1989@gmail.com'
-          git pull --unshallow
           git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
           git fetch upstream
 
@@ -83,5 +84,48 @@ jobs:
 
           # 一次性提交：合并 + 配置调整
           git add -A
-          git commit -m "sync: 同步上游配置"
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "No changes to commit, skip sync"
+          else
+            git commit -m "sync: 同步上游配置"
+            git push origin main
+          fi
+
+  cherry-pick:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [second]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Cherry-pick new commits to ${{ matrix.branch }}
+        run: |
+          git config --global user.name 'laosan-xx'
+          git config --global user.email 'xxhy1989@gmail.com'
+
+          AFTER="${{ github.event.after }}"
+
+          if [[ "$AFTER" =~ ^0+$ ]]; then
+            echo "⚠️ 无有效的提交，跳过 cherry-pick"
+            exit 0
+          fi
+
+          # 切换到目标分支
+          git checkout "${{ matrix.branch }}"
+          git pull origin "${{ matrix.branch }}"
+
+          # 直接 cherry-pick 当前 push 的提交
+          echo "🍒 Cherry-picking: $(git log --oneline -1 $AFTER)"
+          if ! git cherry-pick "$AFTER"; then
+            echo "❌ Cherry-pick 冲突，中止 ${{ matrix.branch }} 分支的处理"
+            git cherry-pick --abort
+            exit 1
+          fi
+
+          git push origin "${{ matrix.branch }}"
+          echo "✅ ${{ matrix.branch }} 分支 cherry-pick 完成"
