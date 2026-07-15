@@ -84,6 +84,11 @@ UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
 UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"
 UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac luci-app-timewol luci-app-wolplus"
 UPDATE_PACKAGE "cloudflarespeedtest" "kimmax603/luci-app-cloudflarespeedtest" "main"
+# 修复翻译文件位置：zh-cn 改为 zh_Hans（OpenWrt 标准命名）
+if [ -d "cloudflarespeedtest/po/zh-cn" ]; then
+    mv -f "cloudflarespeedtest/po/zh-cn" "cloudflarespeedtest/po/zh_Hans"
+    echo "Fixed: Renamed translation directory from zh-cn to zh_Hans"
+fi
 UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 
 #更新软件包版本
