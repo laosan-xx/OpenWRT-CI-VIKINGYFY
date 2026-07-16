@@ -13,14 +13,14 @@ disable_wan6() {
 # --- 2. 函数: 添加usb网卡配置 ---
 add_usb_net_config() {
   # 1. 配置网络接口 (网卡一般识别为 usb0 / eth2)
-  if uci -q get network.USB0 >/dev/null; then
+  if ! uci -q get network.USB0 >/dev/null; then
     uci set network.USB0='interface'
     uci set network.USB0.device='usb0'
     uci set network.USB0.proto='dhcp'
     uci commit network
     echo "USB0接口已添加"
   fi
-  if uci -q get network.USB1 >/dev/null; then
+  if ! uci -q get network.USB1 >/dev/null; then
     uci set network.USB1='interface'
     uci set network.USB1.device='eth2'
     uci set network.USB1.proto='dhcp'
