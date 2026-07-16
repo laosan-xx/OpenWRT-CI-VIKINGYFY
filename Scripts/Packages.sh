@@ -83,40 +83,6 @@ UPDATE_PACKAGE "qmodem" "FUjr/QModem" "main"
 UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
 UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"
 UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac luci-app-timewol luci-app-wolplus"
-UPDATE_PACKAGE "cloudflarespeedtest" "kimmax603/luci-app-cloudflarespeedtest" "main" "name"
-# 完美修复翻译文件问题！关键点：
-# 1. 翻译目录名：zh_Hans（官方标准），同时保留 zh-cn（兼容性）
-# 2. 翻译文件名：cloudflarespeedtest.po（去掉 luci-app- 前缀，与 PKG_NAME 一致！）
-PKG_DIR="cloudflarespeedtest"
-if [ -d "$PKG_DIR/po" ]; then
-    echo "Found translation directory in $PKG_DIR/po"
-    # 处理所有可能的翻译目录
-    for src_lang in "zh-cn" "zh_Hans"; do
-        src_dir="$PKG_DIR/po/$src_lang"
-        if [ -d "$src_dir" ]; then
-            # 找到源 .po 文件（可能是任意名称）
-            src_po=$(find "$src_dir" -name "*.po" -type f | head -n 1)
-            if [ -n "$src_po" ]; then
-                echo "Found source translation file: $src_po"
-                # 确保同时存在 zh_Hans 和 zh-cn 两个目录
-                for target_lang in "zh_Hans" "zh-cn"; do
-                    target_dir="$PKG_DIR/po/$target_lang"
-                    mkdir -p "$target_dir"
-                    target_po="$target_dir/cloudflarespeedtest.po"
-                    cp -f "$src_po" "$target_po"
-                    echo "Fixed: Installed $target_po"
-                done
-            fi
-        fi
-    done
-    
-    echo "Translation files fixed successfully!"
-    ls -la "$PKG_DIR/po/"
-else
-    echo "WARNING: $PKG_DIR/po directory not found!"
-    echo "Current directory contents:"
-    ls -la
-fi
 UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 
 #更新软件包版本
