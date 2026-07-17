@@ -36,8 +36,19 @@ jobs:
             fi
           done
 
-          # 合并上游，冲突时优先采用传入的更改（theirs），先不提交
-          git merge -X theirs --no-commit upstream/main
+          # 合并上游，如有冲突则停止并推送TG通知
+          if ! git merge --no-commit upstream/main; then
+            CONFLICTS="$(git diff --name-only --diff-filter=U)"
+            git merge --abort
+
+            MSG="⚠️ Auto-Async 合并冲突%0A仓库: ${{ github.repository }}%0A分支: main%0A冲突文件:%0A$(echo "$CONFLICTS" | sed 's/$/%0A/g')"
+            curl -s -X POST "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
+              --data-urlencode "chat_id=${{ secrets.TG_CHAT_ID }}" \
+              --data-urlencode "text=${MSG}" > /dev/null 2>&1
+
+            echo "::error::合并上游出现冲突，已中止并推送TG通知"
+            exit 1
+          fi
 
           # 对Config下的特殊文件进行处理：保留本地=y的设备，其余设备设为n
           for f in Config/IPQ*.txt Config/MEDIATEK-*.txt Config/ROCKCHIP.txt; do

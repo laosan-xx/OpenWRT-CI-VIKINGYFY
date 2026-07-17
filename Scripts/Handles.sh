@@ -4,8 +4,38 @@
 
 if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -d "$GITHUB_WORKSPACE/wrt/package" ]; then
 	PKG_PATH="$GITHUB_WORKSPACE/wrt/package"
+	OTHER_PATH="$GITHUB_WORKSPACE/Others"
 else
 	PKG_PATH="$(pwd)"
+	OTHER_PATH="$(pwd)/Others"
+fi
+
+#解决wan口地址与lan口冲突
+HOTPLUG_IFACE_DIR="$GITHUB_WORKSPACE/wrt/files/etc/hotplug.d/iface"
+mkdir -p "$HOTPLUG_IFACE_DIR"
+if [ -f "$OTHER_PATH/90-autolanip" ]; then
+	echo " "
+	if cp -f "$OTHER_PATH/90-autolanip" "$HOTPLUG_IFACE_DIR/90-autolanip" && chmod +x "$HOTPLUG_IFACE_DIR/90-autolanip"; then
+		echo "autolanip has been added!"
+	else
+		echo "autolanip add failed; continuing!"
+	fi
+fi
+
+#删除ddnsto菜单栏一级菜单DDNSTO（Dev）
+DDNSTO_DIR="$(find "$PKG_PATH" -maxdepth 1 -type d -name '*luci-app-ddnsto*' -print -quit)"
+if [ -n "$DDNSTO_DIR" ]; then
+	echo " "
+	DDNSTO_LUA="$(find "$DDNSTO_DIR" -type f -name 'ddnsto.lua' -print -quit)"
+	if [ -n "$DDNSTO_LUA" ]; then
+		if sed -i '/entry({"admin", "ddnsto_dev"},/d; /^function action_ddnsto_dev()/,/^end$/d' "$DDNSTO_LUA"; then
+			echo "ddnsto(Dev) has been removed!"
+		else
+			echo "ddnsto(Dev) remove failed; continuing!"
+		fi
+	else
+		echo "ddnsto lua not found; continuing!"
+	fi
 fi
 
 #预置HomeProxy数据
