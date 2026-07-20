@@ -36,6 +36,8 @@ NZ_SERVER=""
 NZ_TLS=""
 # 客户端密钥 (Agent Secret)
 NZ_CLIENT_SECRET=""
+# 探针 UUID (留空则自动生成)
+NZ_UUID=""
 
 # 是否跳过证书校验 (自签证书时可设为 true)
 NZ_INSECURE_TLS="false"
@@ -203,7 +205,11 @@ download_agent() {
 # 生成配置文件 (保留已有 UUID 以维持面板身份不变)
 generate_config() {
 	local uuid=""
-	if [ -f "$CONFIG_FILE" ]; then
+	# 优先使用用户手动指定的 UUID
+	if [ -n "$NZ_UUID" ]; then
+		uuid="$NZ_UUID"
+		echolog "使用指定探针 UUID: $uuid"
+	elif [ -f "$CONFIG_FILE" ]; then
 		uuid=$(grep '^uuid:' "$CONFIG_FILE" 2>/dev/null | sed 's/^uuid:[[:space:]]*//' | tr -d '\r"' | head -n 1)
 	fi
 	if [ -z "$uuid" ]; then
@@ -295,6 +301,7 @@ save_input() {
 		echo "NZ_SERVER=${NZ_SERVER}"
 		echo "NZ_TLS=${NZ_TLS}"
 		echo "NZ_CLIENT_SECRET=${NZ_CLIENT_SECRET}"
+		echo "NZ_UUID=${NZ_UUID}"
 	} > "$STATE_FILE" 2>/dev/null
 	chmod 600 "$STATE_FILE" 2>/dev/null
 }
@@ -307,6 +314,7 @@ prompt_config() {
 	NZ_SERVER=$(read_cfg_value server);               [ -z "$NZ_SERVER" ]        && NZ_SERVER=$(read_state_value NZ_SERVER)
 	NZ_TLS=$(read_cfg_value tls);                     [ -z "$NZ_TLS" ]           && NZ_TLS=$(read_state_value NZ_TLS)
 	NZ_CLIENT_SECRET=$(read_cfg_value client_secret); [ -z "$NZ_CLIENT_SECRET" ] && NZ_CLIENT_SECRET=$(read_state_value NZ_CLIENT_SECRET)
+	NZ_UUID=$(read_cfg_value uuid);                   [ -z "$NZ_UUID" ]           && NZ_UUID=$(read_state_value NZ_UUID)
 	# TLS 为空时给个合理缺省 (仅用于提示默认)
 	[ -z "$NZ_TLS" ] && NZ_TLS="true"
 
@@ -339,8 +347,12 @@ prompt_config() {
 		echo "  客户端密钥不能为空" >&2
 	done
 
+	printf "  探针 UUID (留空自动生成)%s: " "$([ -n "$NZ_UUID" ] && echo " [$NZ_UUID]")" >&2
+	read -r _in
+	[ -n "$_in" ] && NZ_UUID="$_in"
+
 	echo "" >&2
-	echo "  已确认: server=${NZ_SERVER}  tls=${NZ_TLS}  secret=${NZ_CLIENT_SECRET}" >&2
+	echo "  已确认: server=${NZ_SERVER}  tls=${NZ_TLS}  secret=${NZ_CLIENT_SECRET}  uuid=${NZ_UUID:-<自动生成>}" >&2
 	echo "" >&2
 
 	# 立即缓存本次输入，即使后续下载/安装失败，下次也能带出
