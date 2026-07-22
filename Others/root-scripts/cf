@@ -12,7 +12,7 @@
 # 用法：
 #   cf                  进入交互菜单
 #   cf start [m]        完整流程 (检测代理->测速->推送)
-#   cf test [m] [CIDR]  快速测速 (留空随机，-allip 测全部 IP)
+#   cf test [m] [CIDR]  快速测速 (留空随机，-allip 测全部 IP，默认推送，no-push 关闭)
 #   cf push [m]         仅推送已有结果
 #   cf mode [m]         切换/查看测试模式
 #   cf result           查看上次结果
@@ -548,10 +548,10 @@ run_full() {
 }
 
 # 快速测速 (cf test)：用 -ip 随机 IP 段 + -n 100 -t 4
-# $1 = 是否推送 (1=推送并强制，0=不推送)
+# $1 = 是否推送 (1=推送[默认]，0=不推送)
 # $2 = (可选) 自定义 CIDR
 # $3 = (可选) allip 标志，测试全部 IP
-# 流程: 关闭代理 -> 查询网络 -> 测速 -> 恢复代理 -> (可选)推送
+# 流程: 查询网络 -> 测速 -> (可选)推送
 run_test_only() {
 	local fast_push="${1:-0}"
 	local custom_cidr="${2:-}"
@@ -559,24 +559,20 @@ run_test_only() {
 	rm -f "$RESULT_FILE"
 	echolog "====== 快速测速开始 ======"
 
-	# 1. 关闭代理(若开启)
-	disable_proxy
-
-	# 2. 检查 cfst
+	# 1. 检查 cfst
 	if ! find_cfst; then
 		echolog "错误: 未找到 cfst 二进制"
-		restore_proxy
 		return 1
 	fi
 
-	# 3. 查询本地网络 (代理已关闭，直连查询真实本地网络)
+	# 2. 查询本地网络
 	local net_info=""
 	if [ "$fast_push" = "1" ]; then
 		net_info=$(get_network_info)
 		echolog "本地网络: ${net_info}"
 	fi
 
-	# 4. 测速 + 取 top
+	# 3. 测速 + 取 top
 	local msg=""
 	local top="" top4="" top6=""
 	case "$MODE" in
@@ -599,15 +595,11 @@ run_test_only() {
 			;;
 		*)
 			echolog "错误: 未知 MODE='${MODE}'"
-			restore_proxy
 			return 1
 			;;
 	esac
 
-	# 5. 恢复代理 (测试结束，先恢复再推送，否则 TG 无法连通)
-	restore_proxy
-
-	# 6. 显示结果到屏幕
+	# 4. 显示结果到屏幕
 	echo ""
 	case "$MODE" in
 		ipv4)
@@ -643,7 +635,7 @@ run_test_only() {
 			;;
 	esac
 
-	# 7. 推送
+	# 5. 推送
 	if [ "$fast_push" = "1" ] && [ -n "$msg" ]; then
 		send_telegram "$msg"
 	fi
@@ -825,7 +817,7 @@ run_menu() {
 		echo "  模式: ${MODE}        定时: ${cron_status}        cfst: ${cfst_status}"
 		echo "------------------------------------------"
 		echo "  1) start     完整流程 (检测→测速→推送)"
-		echo "  2) test      快速测速 (可选 IP 段 / -allip)"
+		echo "  2) test      快速测速 (默认推送，可选 IP 段 / -allip)"
 		echo "  3) push      仅推送已有结果"
 		echo "  4) result    查看上次结果"
 		echo "  5) mode      切换测速模式 (ipv4/ipv6/both)"
@@ -850,7 +842,7 @@ run_menu() {
 					read -r allip_choice
 					[ "$allip_choice" = "y" ] || [ "$allip_choice" = "Y" ] && allip_flag=1
 				fi
-				run_test_only 0 "$cidr_input" "$allip_flag"
+				run_test_only 1 "$cidr_input" "$allip_flag"
 				;;
 			3|push)
 				run_push_only
@@ -903,7 +895,7 @@ run_menu() {
 
 # ===================== 入口 =====================
 # start/cron-run/test/push/cron-on 支持 [ipv4|ipv6|both] 第二参数
-# test 额外支持 CIDR: cf test [m] [CIDR] [-allip] [push]，顺序不限
+# test 额外支持 CIDR: cf test [m] [CIDR] [-allip] [no-push]，顺序不限
 #   CIDR 如 104.16.0.0/12 或 2606:4700::/32，留空则随机选取
 #   -allip 测试 CIDR 段内全部 IP (仅 IPv4)
 
@@ -921,16 +913,16 @@ case "${1:-}" in
 		run_full
 		;;
 	test)
-		# 解析后续参数: [ipv4|ipv6|both] [CIDR] [push] [-allip]，顺序不限
+		# 解析后续参数: [ipv4|ipv6|both] [CIDR] [no-push] [-allip]，顺序不限
 		# CIDR 如 104.16.0.0/12 或 2606:4700::/32，会按格式自动推断 ipv4/ipv6
-		fast_push=0
+		fast_push=1
 		custom_cidr=""
 		allip=""
 		shift
 		while [ $# -gt 0 ]; do
 			case "$1" in
 				ipv4|ipv6|both) MODE="$1" ;;
-				push) fast_push=1 ;;
+				no-push|-no-push) fast_push=0 ;;
 				-allip|allip) allip=1 ;;
 				*/*)
 					custom_cidr="$1"
