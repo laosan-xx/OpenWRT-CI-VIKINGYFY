@@ -229,6 +229,35 @@ if [ -n "$HP_DIR" ]; then
 	fi
 fi
 
+#追加Cloudflare CDN IP段到passwall直连规则
+PW_DIR="$(find "$PKG_PATH" -maxdepth 3 \( -type d -o -type l \) -name 'luci-app-passwall' -print -quit)"
+if [ -n "$PW_DIR" ]; then
+	PW_RULES="$PW_DIR/root/usr/share/passwall/rules"
+	PW_DIRECT_IP="$PW_RULES/direct_ip"
+	if [ -d "$PW_RULES" ]; then
+		echo " "
+		PW_CF_TMP="$(mktemp)"
+		echo "#cloudflare cdn" > "$PW_CF_TMP"
+		curl -fsSL --retry 3 --retry-all-errors --connect-timeout 10 --max-time 60 \
+			"https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/refs/heads/master/ip.txt" >> "$PW_CF_TMP"
+		echo "" >> "$PW_CF_TMP"
+		curl -fsSL --retry 3 --retry-all-errors --connect-timeout 10 --max-time 60 \
+			"https://raw.githubusercontent.com/XIU2/CloudflareSpeedTest/refs/heads/master/ipv6.txt" >> "$PW_CF_TMP"
+		if [ -s "$PW_CF_TMP" ]; then
+			cat "$PW_CF_TMP" >> "$PW_DIRECT_IP"
+			echo "passwall direct_ip: cloudflare cdn IPs appended!"
+			echo "----- appended content -----"
+			cat "$PW_CF_TMP"
+			echo "----- end of appended content -----"
+		else
+			echo "passwall direct_ip: failed to download cloudflare IPs; continuing!"
+		fi
+		rm -f "$PW_CF_TMP"
+	else
+		echo "passwall rules directory not found; continuing!"
+	fi
+fi
+
 #修改argon主题字体和颜色
 if [ -d "$PKG_PATH/luci-theme-argon" ]; then
 	echo " "
