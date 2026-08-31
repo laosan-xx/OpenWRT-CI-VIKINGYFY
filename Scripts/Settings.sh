@@ -10,6 +10,11 @@ sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" $(find ./feeds/luci/coll
 sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
 #添加编译日期标识
 sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" $(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
+#修改默认密码 password
+sed -i "s/root:.*/root:\$5\$MZloauSqpcvpjtZb\$NuVJ6qEGPkanc7\/986bDfZnF22V43GXfxl00hhremR4:20440:0:99999:7:::/g" $(find ./package/base-files/files/etc/ -type f -name "shadow")
+
+# TTYD 免登录
+# sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
 
 WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
@@ -31,11 +36,38 @@ sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
 #修改默认主机名
 sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
 
+# 自定义脚本同步（Others/uci-defaults → package/base-files/files/etc/uci-defaults）
+UCI_DEFAULTS_DIR="./package/base-files/files/etc/uci-defaults"
+CUSTOM_UCI_DEFAULTS="${GITHUB_WORKSPACE:+$GITHUB_WORKSPACE/Others/uci-defaults}"
+CUSTOM_UCI_DEFAULTS="${CUSTOM_UCI_DEFAULTS:-../Others/uci-defaults}"
+
+mkdir -p "$UCI_DEFAULTS_DIR"
+
+if [ -d "$CUSTOM_UCI_DEFAULTS" ] && find "$CUSTOM_UCI_DEFAULTS" -maxdepth 1 -type f | grep -q .; then
+	while IFS= read -r FILE; do
+		BASENAME=$(basename "$FILE")
+		cp -f "$FILE" "$UCI_DEFAULTS_DIR/$BASENAME"
+		chmod +x "$UCI_DEFAULTS_DIR/$BASENAME"
+	done < <(find "$CUSTOM_UCI_DEFAULTS" -maxdepth 1 -type f)
+
+	echo "已同步自定义 uci-defaults 脚本到: $UCI_DEFAULTS_DIR"
+else
+	echo "未找到自定义 uci-defaults 脚本，跳过同步"
+fi
+
+# 安装 tmd 到 /usr/bin/tmd（编译期从目标仓库在线下载）
+USR_BIN_DIR="./package/base-files/files/usr/bin"
+mkdir -p "$USR_BIN_DIR"
+curl -fsSL "https://raw.githubusercontent.com/laosan-xx/diy-shell/main/wrt/tmd.sh" -o "$USR_BIN_DIR/tmd" \
+	&& chmod +x "$USR_BIN_DIR/tmd" \
+	&& echo "已安装 tmd 到系统: $USR_BIN_DIR/tmd" \
+	|| echo "错误：下载 tmd 失败，跳过安装。" >&2
+
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
 echo "CONFIG_PACKAGE_luci-theme-$WRT_THEME=y" >> ./.config
-echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
+# echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
 
 #引入私有扩展配置
 if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then

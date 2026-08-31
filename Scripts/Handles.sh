@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
-PKG_PATH="$GITHUB_WORKSPACE/wrt/package"
+if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -d "$GITHUB_WORKSPACE/wrt/package" ]; then
+	PKG_PATH="$GITHUB_WORKSPACE/wrt/package"
+	OTHER_PATH="$GITHUB_WORKSPACE/Others"
+else
+	PKG_PATH="$(pwd)"
+	OTHER_PATH="$(pwd)/Others"
+fi
 
 #预置HomeProxy数据
 HP_DIR="$(find "$PKG_PATH" -maxdepth 3 -type d -iname '*homeproxy*' -print -quit 2>/dev/null)"
@@ -192,6 +198,18 @@ if [ -n "$HP_DIR" ]; then
 		echo "homeproxy data has been updated!"
 	else
 		echo "homeproxy resource preset completed with errors; continuing other handlers!"
+	fi
+fi
+
+#解决wan口地址与lan口冲突
+HOTPLUG_IFACE_DIR="$GITHUB_WORKSPACE/wrt/files/etc/hotplug.d/iface"
+mkdir -p "$HOTPLUG_IFACE_DIR"
+if [ -f "$OTHER_PATH/90-autolanip" ]; then
+	echo " "
+	if cp -f "$OTHER_PATH/90-autolanip" "$HOTPLUG_IFACE_DIR/90-autolanip" && chmod +x "$HOTPLUG_IFACE_DIR/90-autolanip"; then
+		echo "autolanip has been added!"
+	else
+		echo "autolanip add failed; continuing!"
 	fi
 fi
 
