@@ -17,7 +17,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # 上游同步会带回 .github/workflows/* 的变更，
+          # GITHUB_TOKEN 无权改写 workflow 文件会被 GitHub 拒绝 push，
+          # 必须使用勾选了 repo + workflow 权限的 PAT（secret 名 PUSH_TOKEN）。
+          token: ${{ secrets.PUSH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Merge upstream
         env:
