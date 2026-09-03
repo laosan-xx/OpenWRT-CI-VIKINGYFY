@@ -81,3 +81,6 @@ jobs:
       WRT_PACKAGE: ${{inputs.PACKAGE}}
       #仅输出配置文件
       WRT_TEST: ${{inputs.TEST || false}}
+    #私有源码仓库拉取凭据
+    secrets:
+      FRP_PAT: ${{secrets.FRP_PAT}}

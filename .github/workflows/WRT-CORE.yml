@@ -44,9 +44,14 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      #私有源码仓库（laosan-xx/frp）的读取令牌
+      FRP_PAT:
+        required: false
 
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  FRP_PAT: ${{secrets.FRP_PAT}}
   WRT_CONFIG: ${{inputs.WRT_CONFIG}}
   WRT_THEME: ${{inputs.WRT_THEME}}
   WRT_NAME: ${{inputs.WRT_NAME}}
@@ -177,6 +182,12 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Packages.sh
           $GITHUB_WORKSPACE/Scripts/Handles.sh
+
+      - name: Prepare Private Sources
+        if: ${{ !inputs.WRT_TEST }}
+        run: |
+          cd ./wrt/
+          $GITHUB_WORKSPACE/Scripts/Private-Source.sh
 
       - name: Custom Settings
         run: |
