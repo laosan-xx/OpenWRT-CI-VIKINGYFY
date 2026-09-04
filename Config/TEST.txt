@@ -4,6 +4,8 @@ CONFIG_TARGET_qualcommax_ipq50xx=y
 #设备列表
 CONFIG_TARGET_DEVICE_qualcommax_ipq50xx_DEVICE_cmcc_mr3000d-ci=y
 #科学插件调整
+CONFIG_PACKAGE_luci-app-nikki=y
+CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
 CONFIG_PACKAGE_luci-app-homeproxy=y
 #增加插件
 CONFIG_PACKAGE_luci-app-autoreboot=y
