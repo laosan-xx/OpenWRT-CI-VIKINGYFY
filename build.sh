@@ -430,7 +430,7 @@ step "[5/11] Update Feeds"
 	fi
 
 	rm -rf feeds/packages/lang/golang
-	git clone --depth=1 https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
+	git clone --depth=1 https://github.com/sbwml/packages_lang_golang -b 27.x feeds/packages/lang/golang
 
 	./scripts/feeds install -a
 )
