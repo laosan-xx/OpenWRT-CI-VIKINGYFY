@@ -19,6 +19,25 @@
 #    2. 默认不再执行 apt full-upgrade / make clean(可用 --upgrade / --make-clean 打开)
 #    3. 重复运行时自动复位源码、重建 .config、重建插件克隆目录，保证与首次结果一致
 #    4. 不做 GitHub Release 上传，固件统一输出到 upload/<配置>-<时间>/ 目录
+#
+
+
+#    cd ~/OpenWRT-CI-VIKINGYFY/wrt
+
+#  建议先只把工具链编出来，后面每编一个包都是分钟级
+#    make toolchain/install -j$(nproc) V=s
+
+#  找包名路径（插件在 feeds/ 或 package/ 下）
+#    find feeds package -maxdepth 4 -name Makefile | grep -i openclash
+
+#  单独编译
+#    make package/luci-app-openclash/compile V=s
+#  改了源码后：先清再编
+#    make package/luci-app-openclash/{clean,compile} V=s
+#  内核模块同理
+#    make package/kernel/kmod-xxx/compile V=s
+
+#
 # ============================================================================
 
 set -euo pipefail
@@ -81,7 +100,9 @@ on_error() {
 }
 trap on_error ERR
 
-cleanup() { rm -rf -- "$SHIM_DIR" "$ENV_FILE"; }
+cleanup() {
+	rm -rf -- "$SHIM_DIR" "$ENV_FILE" "$APT_LOG"
+}
 trap cleanup EXIT
 
 # 把写入 $GITHUB_ENV 的内容同步回当前环境(替代 CI 的 $GITHUB_ENV 机制)
@@ -92,6 +113,81 @@ sync_env() {
 		[[ "$LINE" == *=* ]] || continue
 		export "${LINE%%=*}=${LINE#*=}"
 	done <"$GITHUB_ENV"
+}
+
+# ============================== apt 容错封装 ==============================
+# 物理机的软件源常见问题: 第三方源 GPG key 过期/缺失、仓库不提供 i386 包等，
+# 这些与 OpenWrt 编译本身无关，因此统一容错处理，避免整条流程中断。
+APT_LOG="$(mktemp 2>/dev/null || echo /tmp/wrt-apt.$$.log)"
+: >"$APT_LOG"
+
+apt_last_error() {
+	tr -d '\r' <"$APT_LOG" 2>/dev/null | grep -E '^(W|E):' | tail -n 1
+}
+
+apt_update() {
+	local attempt rc=0
+	: >"$APT_LOG"
+	for attempt in 1 2 3; do
+		if $SUDO apt-get update 2>"$APT_LOG"; then
+			return 0
+		fi
+		rc=$?
+		warn "apt-get update 失败(第 $attempt 次): $(apt_last_error)"
+		sleep 3
+	done
+	return "$rc"
+}
+
+apt_repair() {
+	local KEYS KEY NATIVE
+	info "尝试自动修复软件源问题..."
+
+	# 1. 缺失或过期的 GPG key
+	KEYS="$(tr -d '\r' <"$APT_LOG" 2>/dev/null | grep -oP '(NO_PUBKEY|EXPKEYSIG) \K[0-9A-Fa-f]{8,40}' | sort -u)"
+	for KEY in $KEYS; do
+		info "重新导入 GPG key: $KEY"
+		$SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "$KEY" >/dev/null 2>&1 ||
+			$SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "$KEY" >/dev/null 2>&1 ||
+			warn "GPG key $KEY 导入失败"
+	done
+
+	# 2. 仓库不提供本机多架构支持的包(典型: llvm-apt 无 i386)
+	if tr -d '\r' <"$APT_LOG" 2>/dev/null | grep -q 'binary-i386'; then
+		NATIVE="$(dpkg --print-architecture)"
+		if dpkg -l 2>/dev/null | grep -q ':i386'; then
+			warn "本机装有 i386 软件包，跳过架构调整；请手动给相关源加上 [arch=$NATIVE]"
+		else
+			info "仓库不提供 i386 且本机无 i386 软件，移除 i386 架构"
+			$SUDO dpkg --remove-architecture i386 >/dev/null 2>&1 || warn "移除 i386 架构失败"
+		fi
+	fi
+}
+
+apt_install() {
+	local attempt rc=0
+	for attempt in 1 2 3; do
+		if $SUDO apt-get -yqq install "$@" 2>"$APT_LOG"; then
+			return 0
+		fi
+		rc=$?
+		warn "apt-get install 失败(第 $attempt 次): $(apt_last_error)"
+		[ "$attempt" = "2" ] && { apt_repair; apt_update || true; }
+		sleep 3
+	done
+	return "$rc"
+}
+
+run_init_script() {
+	local attempt
+	for attempt in 1 2 3; do
+		if $SUDO bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'; then
+			return 0
+		fi
+		warn "官方初始化脚本执行失败(第 $attempt 次)，5 秒后重试..."
+		sleep 5
+	done
+	return 1
 }
 
 # ============================== 参数解析 ==============================
@@ -191,24 +287,37 @@ if [ "$SKIP_DEPS" = "1" ]; then
 elif ! command -v apt-get >/dev/null 2>&1; then
 	warn "未检测到 apt-get，请自行安装 OpenWrt 编译依赖后重跑(可加 --no-deps)"
 else
-	info "安装基础工具..."
-	$SUDO apt-get -yqq update
+	info "更新软件源索引..."
+	if ! apt_update; then
+		apt_repair
+		apt_update || warn "软件源仍有错误，将忽略不可用源继续: $(apt_last_error)"
+	fi
+
 	if [ "$DO_UPGRADE" = "1" ]; then
 		info "升级系统软件包(--upgrade)..."
-		$SUDO apt-get -yqq full-upgrade
+		$SUDO apt-get -yqq full-upgrade 2>"$APT_LOG" || warn "系统升级失败，继续安装依赖: $(apt_last_error)"
 	fi
+
 	# dos2unix/libfuse-dev 为 CI 原样安装项，其余为本地环境补齐
-	$SUDO apt-get -yqq install --no-install-recommends \
-		dos2unix libfuse-dev jq unzip zip curl wget ca-certificates
-	$SUDO apt-get -yqq autoremove --purge || true
-	$SUDO apt-get -yqq autoclean || true
+	info "安装基础工具..."
+	if apt_install --no-install-recommends dos2unix libfuse-dev jq unzip zip curl wget ca-certificates; then
+		ok "基础工具安装完成"
+	else
+		warn "基础工具安装失败，编译可能中断；可手动修复软件源后重跑，或加 --no-deps 跳过"
+	fi
+
+	$SUDO apt-get -yqq autoremove --purge 2>/dev/null || true
+	$SUDO apt-get -yqq autoclean 2>/dev/null || true
 
 	info "执行 immortalwrt 官方环境初始化脚本..."
-	$SUDO bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+	if run_init_script; then
+		ok "官方依赖安装完成"
+	else
+		warn "官方初始化脚本执行失败，请检查网络；可稍后重跑或加 --no-deps 跳过"
+	fi
 
 	$SUDO systemctl daemon-reload 2>/dev/null || true
 	$SUDO timedatectl set-timezone "Asia/Shanghai" 2>/dev/null || true
-	ok "依赖安装完成"
 fi
 
 mkdir -p -- "$(dirname "$WRT_DIR")"
