@@ -10,6 +10,46 @@ else
 	OTHER_PATH="$(pwd)/Others"
 fi
 
+#移除源码内置的雅典娜LED控制(package/emortal/luci-app-athena-led)
+#Packages.sh 的清理只扫描 feeds/luci 与 feeds/packages，源码树自带的同名包不会被删除；
+#不删掉会与上游拆分版(athena-led + luci-app-athena-led)重名，设备 profile 强制选中的
+#luci-app-athena-led 仍会落到内置旧版，新版永远编不进固件
+#删掉内置旧版后，profile 里的 luci-app-athena-led 会自然落到新版，再由 +athena-led 依赖带出核心包，
+#这样只有雅典娜设备会带这个菜单；不需要、也不应该在 Config 里全局写 CONFIG_PACKAGE_athena-led=y
+ATHENA_BUILTIN="$(find "$PKG_PATH" -mindepth 2 -maxdepth 3 -type d -iname '*athena-led*' 2>/dev/null)"
+if [ -n "$ATHENA_BUILTIN" ]; then
+	echo " "
+	while IFS= read -r DIR; do
+		if rm -rf "$DIR"; then
+			echo "Delete built-in directory: $DIR"
+		else
+			echo "built-in directory delete failed: $DIR; continuing!"
+		fi
+	done <<< "$ATHENA_BUILTIN"
+fi
+
+#保持雅典娜LED控制的菜单位置与内置旧版一致(系统菜单)，上游默认挂在服务菜单
+ATHENA_MENU="$PKG_PATH/luci-app-athena-led/root/usr/share/luci/menu.d/luci-app-athena-led.json"
+if [ -f "$ATHENA_MENU" ]; then
+	echo " "
+	if sed -i 's#admin/services/athena_led#admin/system/athena_led#' "$ATHENA_MENU"; then
+		echo "athena-led has been fixed!"
+	else
+		echo "athena-led fix failed; continuing!"
+	fi
+fi
+
+#上游界面包没走 luci.mk，缺少 luci-base/host 时 po2lmo 不可用，中文语言包会静默编不出来
+ATHENA_LUCI_MK="$PKG_PATH/luci-app-athena-led/Makefile"
+if [ -f "$ATHENA_LUCI_MK" ] && ! grep -q "PKG_BUILD_DEPENDS" "$ATHENA_LUCI_MK"; then
+	echo " "
+	if sed -i 's#^include \$(INCLUDE_DIR)/package.mk#PKG_BUILD_DEPENDS:=luci-base/host\n&#' "$ATHENA_LUCI_MK"; then
+		echo "athena-led i18n depends has been fixed!"
+	else
+		echo "athena-led i18n depends fix failed; continuing!"
+	fi
+fi
+
 #预置HomeProxy数据，隔离临时变量和清理信号，避免影响后续修复
 hp_preset_resources() (
 	local HP_DIR="$1"
