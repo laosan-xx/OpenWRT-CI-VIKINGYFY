@@ -83,6 +83,11 @@ UPDATE_PACKAGE "airpi3000m" "LianXia233/luci-app-airpi3000m-fancontrol" "main"
 UPDATE_PACKAGE "h5000m" "LianXia233/luci-app-h5000m-netmode" "main"
 UPDATE_PACKAGE "qmodem-generic" "LianXia233/luci-app-qmodem-generic" "main"
 
+#雅典娜LED控制，上游自 v2.3.0 起拆成 athena-led(核心) + luci-app-athena-led(界面) 两个包
+#pkg模式按名称匹配，会一次性把 athena-led 和 luci-app-athena-led 都取出来
+#锁定最新发布标签 v2.4.0：main 分支的 Makefile 已写到 2.5.0，但对应 Release 尚未发布，取 main 会导致下载源码失败
+UPDATE_PACKAGE "athena-led" "unraveloop/JDC-AX6600-Athena-LED-Controller" "v2.4.0" "pkg"
+
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
@@ -126,6 +131,8 @@ UPDATE_VERSION() {
 
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 #UPDATE_VERSION "sing-box"
+#跟随上游 Release 自动更新雅典娜LED核心包，上面克隆的 v2.4.0 只作为基准版本
+UPDATE_VERSION "athena-led"
 
 #引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
