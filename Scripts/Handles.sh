@@ -50,6 +50,20 @@ if [ -f "$ATHENA_LUCI_MK" ] && ! grep -q "PKG_BUILD_DEPENDS" "$ATHENA_LUCI_MK"; 
 	fi
 fi
 
+#移除 jdcloud_re-cs-02 设备 profile 中的独立中文语言包
+#源码 target/linux/qualcommax/image/ipq60xx.mk 的 DEVICE_PACKAGES 写死了 luci-i18n-athena-led-zh-cn，
+#新版 luci-app-athena-led(v2.4.0) 语言已内置，不再产出该独立包，固件打包时 apk 会报
+#"ERROR: unable to select packages: luci-i18n-athena-led-zh-cn (no such package)"
+ATHENA_PROFILE_MK="$PKG_PATH/../target/linux/qualcommax/image/ipq60xx.mk"
+if [ -f "$ATHENA_PROFILE_MK" ]; then
+	echo " "
+	if sed -i '/jdcloud_re-cs-02/s/ luci-i18n-athena-led-zh-cn//' "$ATHENA_PROFILE_MK"; then
+		echo "athena-led profile has been fixed!"
+	else
+		echo "athena-led profile fix failed; continuing!"
+	fi
+fi
+
 #预置HomeProxy数据，隔离临时变量和清理信号，避免影响后续修复
 hp_preset_resources() (
 	local HP_DIR="$1"
