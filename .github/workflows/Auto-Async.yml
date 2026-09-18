@@ -1,0 +1,103 @@
+name: Auto-Async
+
+on:
+  workflow_dispatch:
+  schedule:
+    #自动同步：每天 14:00 与次日 01:00（北京时间，对应 UTC 6:00 / 17:00）
+    - cron:  0 6,17 * * *
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge upstream
+        env:
+          UPSTREAM_REPO: https://github.com/VIKINGYFY/OpenWRT-CI.git
+        run: |
+          set -euo pipefail
+
+          git config --global user.name 'laosan-xx'
+          git config --global user.email 'xxhy1989@gmail.com'
+          git config --global advice.mergeConflict false
+
+          # 添加上游远程（已存在则更新 URL）
+          if git remote get-url upstream > /dev/null 2>&1; then
+            git remote set-url upstream "$UPSTREAM_REPO"
+          else
+            git remote add upstream "$UPSTREAM_REPO"
+          fi
+          git fetch upstream
+
+          # 记录合并前本地 Config 中勾选的 =y 设备
+          mkdir -p /tmp/local_devices
+          for f in Config/IPQ*.txt Config/MEDIATEK-*.txt Config/ROCKCHIP.txt; do
+            [ -f "$f" ] || continue
+            grep -E '^CONFIG_TARGET_DEVICE_.*=y$' "$f" | sed 's/=y$//' > "/tmp/local_devices/$(echo "$f" | tr '/' '_')" || true
+          done
+
+          # 采用 merge 同步：merge-base 会自动前进，已合并过的内容不会被重复应用，
+          # 手工解决冲突后也不需要额外维护任何同步标记。
+          # 无冲突 → 完成合并并推送；
+          # 有冲突 → 立即终止，main 保持原样不动，推送 TG 通知等待人工处理。
+          if ! git merge --no-edit upstream/main; then
+            CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
+            echo "::error::合并存在冲突，终止同步，main 保持不变"
+            echo "$CONFLICTS" | while read -r cf; do echo "  CONFLICT: $cf"; done
+            git merge --abort || true
+
+            MSG=$'⚠️ Auto-Async 上游合并存在冲突，已终止同步\n仓库: ${{ github.repository }}\n分支: main\n冲突文件:\n'"$CONFLICTS"$'\nmain 未做任何改动，需手动处理:\ngit fetch upstream && git merge upstream/main'
+            curl -s -X POST "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
+              --data-urlencode "chat_id=${{ secrets.TG_CHAT_ID }}" \
+              --data-urlencode "text=${MSG}" > /dev/null 2>&1 || true
+
+            echo "::error::已推送TG通知，等待人工处理"
+            exit 1
+          fi
+          echo "::notice::上游已无冲突合并"
+
+          # 恢复本地勾选的 =y 设备，其余设备设为 n
+          for f in Config/IPQ*.txt Config/MEDIATEK-*.txt Config/ROCKCHIP.txt; do
+            [ -f "$f" ] || continue
+            local_key="/tmp/local_devices/$(echo "$f" | tr '/' '_')"
+            [ -f "$local_key" ] || continue
+            awk '
+            BEGIN {
+              while ((getline line < "'"$local_key"'") > 0) {
+                if (line != "") local_set[line] = 1
+              }
+              close("'"$local_key"'")
+            }
+            /^CONFIG_TARGET_DEVICE_.*=y$/ {
+              key = $0
+              sub(/=y$/, "", key)
+              if (key in local_set) { print key "=y" } else { print key "=n" }
+              next
+            }
+            /^CONFIG_TARGET_DEVICE_.*=n$/ {
+              key = $0
+              sub(/=n$/, "", key)
+              if (key in local_set) { print key "=y" } else { print $0 }
+              next
+            }
+            { print }
+            ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+          done
+          rm -rf /tmp/local_devices
+
+          # 提交合并结果与配置调整
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "sync: 同步上游配置"
+          fi
+          git push origin HEAD
