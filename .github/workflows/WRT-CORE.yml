@@ -269,17 +269,43 @@ jobs:
           echo "已找到 sing-box 软件包："
           ls -lh ./singbox-upload/
 
-          #release tag 取 sing-box 版本号，形如 sing-box-1.12.9-1
-          VER=$(ls ./singbox-upload | sed -nE 's/^sing-box_([^_]+)_.*/\1/p' | head -n1)
+          #release tag 取 sing-box 版本号（ipk 优先，其次 apk），两种命名归一到同一 tag：
+          #  sing-box_1.14.2-r1_aarch64_cortex-a53.ipk -> sing-box-1.14.2-r1
+          #  sing-box-1.14.2-r1.apk                    -> sing-box-1.14.2-r1
+          VER=""
+          for f in ./singbox-upload/sing-box_*.ipk ./singbox-upload/sing-box-*.apk; do
+            [ -f "$f" ] || continue
+            b=$(basename "$f")
+            v=${b#sing-box}
+            v=${v#[-_]}       #去掉 sing-box 后的 - 或 _
+            v=${v%.*}         #去掉 .ipk / .apk 后缀
+            v=${v%%_*}        #去掉 _架构 后缀
+            [ -n "$v" ] && { VER="$v"; break; }
+          done
           TAG="sing-box-${VER:-latest}"
+
+          #说明按仓库分区：每行以本仓库唯一标记开头，合并时只替换自己那一行，互不覆盖
+          MARK="[CI:${GITHUB_REPOSITORY}/${WRT_BRANCH}]"
+          NOTE="${MARK} sing-box 编译产物，由 ${GITHUB_REPOSITORY} CI 于 ${WRT_DATE} 自动发布。"
+          BODY=/tmp/singbox-release-body.md
 
           if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
             gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber
           else
+            #被另一仓库抢先创建时（并发），退化为上传，不让整个任务失败
             gh release create "$TAG" ./singbox-upload/* --repo "$REPO" \
-              --title "$TAG" \
-              --notes "sing-box 编译产物，由 ${{github.repository}} CI 于 $WRT_DATE 自动发布（分支：$WRT_BRANCH）。"
+              --title "$TAG" --notes "$NOTE" \
+            || gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber
           fi
+
+          #重读最新说明：删本仓库旧行、留其它项目的行、追加本仓库新行（幂等，重跑不会重复）
+          for i in 1 2 3; do
+            gh release view "$TAG" --repo "$REPO" --json body -q .body > "$BODY" || : > "$BODY"
+            grep -vF "$MARK" "$BODY" > "$BODY.new" || :
+            printf '%s\n' "$NOTE" >> "$BODY.new"
+            gh release edit "$TAG" --repo "$REPO" --notes-file "$BODY.new" && break
+            sleep $((RANDOM % 5 + 2))
+          done
 
           echo "已发布至 https://github.com/$REPO/releases/tag/$TAG"
 
