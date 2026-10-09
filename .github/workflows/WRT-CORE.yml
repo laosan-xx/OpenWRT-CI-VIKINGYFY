@@ -243,6 +243,46 @@ jobs:
           # make -j1 V=s
           make -j$(nproc) || make -j1 V=s
 
+      #检查本次是否编译出 sing-box 软件包，有则发布到 passwall 仓库
+      - name: Publish Sing-box Package
+        if: ${{ !inputs.WRT_TEST }}
+        env:
+          GH_TOKEN: ${{secrets.PASSWALL_PAT}}
+        run: |
+          cd ./wrt/
+
+          #收集编译产物（per-device rootfs 下同一 ipk 会有多份副本，同名覆盖即去重）
+          mkdir -p ./singbox-upload
+          find ./bin -type f \( -name 'sing-box_*.ipk' -o -name 'sing-box-*.apk' \) -exec cp -f {} ./singbox-upload/ \; 2>/dev/null || true
+
+          if [ -z "$(ls -A ./singbox-upload 2>/dev/null)" ]; then
+            echo "::notice::本次未编译出 sing-box 软件包，跳过发布。"
+            exit 0
+          fi
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::未配置 PASSWALL_PAT，跳过发布。"
+            exit 0
+          fi
+
+          REPO="laosan-xx/openwrt-passwall"
+          echo "已找到 sing-box 软件包："
+          ls -lh ./singbox-upload/
+
+          #release tag 取 sing-box 版本号，形如 sing-box-1.12.9-1
+          VER=$(ls ./singbox-upload | sed -nE 's/^sing-box_([^_]+)_.*/\1/p' | head -n1)
+          TAG="sing-box-${VER:-latest}"
+
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" ./singbox-upload/* --repo "$REPO" \
+              --title "$TAG" \
+              --notes "sing-box 编译产物，由 ${{github.repository}} CI 于 $WRT_DATE 自动发布（分支：$WRT_BRANCH）。"
+          fi
+
+          echo "已发布至 https://github.com/$REPO/releases/tag/$TAG"
+
       - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@main

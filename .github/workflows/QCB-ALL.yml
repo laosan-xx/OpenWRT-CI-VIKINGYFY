@@ -41,6 +41,8 @@ jobs:
 
     #调用公用编译核心WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
+    #传递仓库 Secrets（含 PASSWALL_PAT）
+    secrets: inherit
     with:
       #编译配置
       WRT_CONFIG: ${{matrix.CONFIG}}
