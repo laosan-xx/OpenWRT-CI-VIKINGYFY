@@ -59,6 +59,9 @@ jobs:
               --data-urlencode "chat_id=${{ secrets.TG_CHAT_ID }}" \
               --data-urlencode "text=${MSG}" > /dev/null 2>&1 || true
 
+            # 记录冲突文件，交给 job 末尾的 WxPusher 通知步骤（避免重复推送）
+            printf '%s\n' "$CONFLICTS" > "$RUNNER_TEMP/wxpusher-conflicts.txt" || true
+
             echo "::error::已推送TG通知，等待人工处理"
             exit 1
           fi
@@ -101,3 +104,41 @@ jobs:
             git commit -m "sync: 同步上游配置"
           fi
           git push origin HEAD
+
+      #失败（含合并冲突）时推送 WxPusher，未配置密钥则自动跳过，不影响 CI 结果
+      - name: Notify WxPusher On Failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        env:
+          WXPUSHER_APP_TOKEN: ${{secrets.WXPUSHER_APP_TOKEN}}
+          WXPUSHER_UIDS: ${{secrets.WXPUSHER_UIDS}}
+          WXPUSHER_TOPIC_IDS: ${{secrets.WXPUSHER_TOPIC_IDS}}
+          RUN_URL: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}
+        run: |
+          SCRIPT="$GITHUB_WORKSPACE/.github/scripts/notify-wxpusher.sh"
+          if [ ! -f "$SCRIPT" ]; then
+            echo "::warning::未找到 notify-wxpusher.sh，跳过 WxPusher 推送"
+            exit 0
+          fi
+
+          CONFLICT_FILE="$RUNNER_TEMP/wxpusher-conflicts.txt"
+          if [ -s "$CONFLICT_FILE" ]; then
+            SUMMARY="⚠️ Auto-Async 合并冲突"
+            EXTRA=$(printf '\n%s\n\n%s' '**冲突文件**' "$(sed 's/^/- /' "$CONFLICT_FILE")")
+          else
+            SUMMARY="⚠️ Auto-Async 同步失败"
+            EXTRA=""
+          fi
+
+          MSG=$(printf '%s\n' \
+            '## ⚠️ Auto-Async 同步失败' \
+            '' \
+            "- 仓库：${GITHUB_REPOSITORY}" \
+            "- 分支：main" \
+            "- 触发：${GITHUB_EVENT_NAME}" \
+            "- 运行：第 ${GITHUB_RUN_ATTEMPT} 次尝试" \
+            "${EXTRA}" \
+            '' \
+            "[点击查看运行日志](${RUN_URL})")
+
+          WXPUSHER_URL="$RUN_URL" bash "$SCRIPT" "$MSG" "$SUMMARY"
