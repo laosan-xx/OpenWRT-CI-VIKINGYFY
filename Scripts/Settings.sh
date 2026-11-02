@@ -16,13 +16,12 @@ sed -i "s/root:.*/root:\$5\$MZloauSqpcvpjtZb\$NuVJ6qEGPkanc7\/986bDfZnF22V43GXfx
 # TTYD 免登录
 sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
 
+#修改默认WIFI账号密码
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
-if [ -f "$WIFI_UC" ]; then
-	#修改WIFI名称
-	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
-	#修改WIFI密码
-	sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
-fi
+ROUTER_TOOL="./package/emortal/luci-app-router-tool/root/etc/config/router-tool"
+for file in "$ROUTER_TOOL" "$WIFI_UC"; do
+	[ -f "$file" ] && sed -i "s/ssid '.*'/ssid '$WRT_SSID'/g; s/key '.*'/key '$WRT_WORD'/g" "$file"
+done
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
 #修改默认IP地址
