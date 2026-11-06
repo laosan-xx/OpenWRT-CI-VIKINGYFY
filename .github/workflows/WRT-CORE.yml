@@ -279,16 +279,20 @@ jobs:
           retention-days: 7
 
       #检查本次是否编译出 sing-box 软件包，有则发布到 passwall 仓库
+      #注意：这是附加产物发布，任何失败只告警，绝不阻断后面的固件打包与发布
       - name: Publish Sing-box Package
         if: ${{ !inputs.WRT_TEST }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{secrets.PASSWALL_PAT}}
         run: |
-          cd ./wrt/
+          set +e   #关掉 bash -e，本步骤属于加分项，任何命令失败都不能让任务退出
+
+          cd ./wrt/ || exit 0
 
           #收集编译产物（per-device rootfs 下同一 ipk 会有多份副本，同名覆盖即去重）
           mkdir -p ./singbox-upload
-          find ./bin -type f \( -name 'sing-box_*.ipk' -o -name 'sing-box-*.apk' \) -exec cp -f {} ./singbox-upload/ \; 2>/dev/null || true
+          find ./bin -type f \( -name 'sing-box_*.ipk' -o -name 'sing-box-*.apk' \) -exec cp -f {} ./singbox-upload/ \; 2>/dev/null
 
           if [ -z "$(ls -A ./singbox-upload 2>/dev/null)" ]; then
             echo "::notice::本次未编译出 sing-box 软件包，跳过发布。"
@@ -324,28 +328,45 @@ jobs:
           NOTE="${MARK} sing-box 编译产物，由 ${GITHUB_REPOSITORY} CI 于 ${WRT_DATE} 自动发布。"
           BODY=/tmp/singbox-release-body.md
 
-          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
-            gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber
-          else
-            #被另一仓库抢先创建时（并发），退化为上传，不让整个任务失败
-            gh release create "$TAG" ./singbox-upload/* --repo "$REPO" \
-              --title "$TAG" --notes "$NOTE" \
-            || gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber
+          #保证 release 存在（并发下可能被其它仓库抢先创建，视为成功）
+          for i in 1 2 3; do
+            gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1 && break
+            gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes "$NOTE" > /dev/null 2>&1
+            gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1 && break
+            sleep $((i * 3))
+          done
+
+          #上传重试：GitHub API 偶发 5xx（尤其是 --clobber 的删除同名 asset 请求）不能算任务失败
+          UPLOADED=0
+          for i in 1 2 3 4 5; do
+            if gh release upload "$TAG" ./singbox-upload/* --repo "$REPO" --clobber; then
+              UPLOADED=1
+              break
+            fi
+            echo "::warning::sing-box 上传失败（第 $i 次），$((i * 5)) 秒后重试。"
+            sleep $((i * 5))
+          done
+          if [ "$UPLOADED" -ne 1 ]; then
+            echo "::warning::sing-box 软件包上传最终失败，跳过发布；不影响固件打包与发布。"
+            exit 0
           fi
 
           #重读最新说明：删本仓库旧行、留其它项目的行、追加本仓库新行（幂等，重跑不会重复）
           for i in 1 2 3; do
-            gh release view "$TAG" --repo "$REPO" --json body -q .body > "$BODY" || : > "$BODY"
-            grep -vF "$MARK" "$BODY" > "$BODY.new" || :
+            gh release view "$TAG" --repo "$REPO" --json body -q .body > "$BODY" 2>/dev/null || : > "$BODY"
+            grep -vF "$MARK" "$BODY" > "$BODY.new" 2>/dev/null || :
             printf '%s\n' "$NOTE" >> "$BODY.new"
             gh release edit "$TAG" --repo "$REPO" --notes-file "$BODY.new" && break
             sleep $((RANDOM % 5 + 2))
           done
 
           echo "已发布至 https://github.com/$REPO/releases/tag/$TAG"
+          exit 0
 
+      #缓存保存失败（配额/接口 5xx）不影响固件，不允许阻断发布
       - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
+        continue-on-error: true
         uses: actions/cache/save@main
         with:
           key: ${{env.WRT_CACHE_KEY}}
@@ -355,39 +376,41 @@ jobs:
             ./wrt/staging_dir/tool*
 
       - name: Machine Information
+        continue-on-error: true
         run: |
           cd ./wrt/
 
           echo "======================="
-          lscpu | grep -E "name|Core|Thread"
+          lscpu | grep -E "name|Core|Thread" || true
           echo "======================="
           df -h
           echo "======================="
-          du -h --max-depth=1
+          du -h --max-depth=1 || true
           echo "======================="
 
       - name: Package Firmware
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          cd ./wrt/ && mkdir -p ./upload/
 
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
 
           if [[ "$WRT_TEST" != 'true' ]]; then
-            echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
-            echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+            echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV || true
+            echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV || true
 
-            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
+            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} + || true
 
             for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
+              [ -f "$FILE" ] || continue
               EXT=$(basename $FILE | cut -d '.' -f 2-)
               NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
               NEW_FILE="$NAME"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE"."$EXT"
-              mv -f $FILE ./upload/$NEW_FILE
+              mv -f $FILE ./upload/$NEW_FILE || true
             done
 
-            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \; || true
 
-            make clean -j$(nproc)
+            make clean -j$(nproc) || true
           fi
 
       - name: Release Firmware
