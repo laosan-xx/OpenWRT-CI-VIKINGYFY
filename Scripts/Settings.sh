@@ -19,9 +19,14 @@ sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.
 #修改默认WIFI账号密码
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
 ROUTER_TOOL="./package/emortal/luci-app-router-tool/root/etc/config/router-tool"
-for file in "$ROUTER_TOOL" "$WIFI_UC"; do
-	[ -f "$file" ] && sed -i "s/ssid '.*'/ssid '$WRT_SSID'/g; s/key '.*'/key '$WRT_WORD'/g" "$file"
-done
+# uci 模板: set ${si}.ssid='${defaults?.ssid || 'OWRT'}'
+if [ -f "$WIFI_UC" ]; then
+	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g; s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
+fi
+# uci 配置文件: option ssid 'OWRT'
+if [ -f "$ROUTER_TOOL" ]; then
+	sed -i "s/ssid '.*'/ssid '$WRT_SSID'/g; s/key '.*'/key '$WRT_WORD'/g" "$ROUTER_TOOL"
+fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
 #修改默认IP地址
