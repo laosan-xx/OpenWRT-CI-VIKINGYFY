@@ -19,13 +19,36 @@ sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.
 #修改默认WIFI账号密码
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
 ROUTER_TOOL="./package/emortal/luci-app-router-tool/root/etc/config/router-tool"
-# uci 模板: set ${si}.ssid='${defaults?.ssid || 'OWRT'}'
+# OWRT 分支的 mac80211.uc 由 default_ssid() 生成 SSID, 会按频段拼上 -2.4G/-5.2G/-5.8G 后缀。
+# 这里在编译期直接改写该函数, 让所有频段统一使用 $WRT_SSID, 不拼接任何后缀。
 if [ -f "$WIFI_UC" ]; then
-	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g; s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
+	# 兼容旧版写法: set ${si}.ssid='OWRT' / key='...'
+	sed -i "s/ssid='[^']*'/ssid='$WRT_SSID'/g; s/key='[^']*'/key='$WRT_WORD'/g" "$WIFI_UC"
+	# OWRT 分支: 用 default_ssid() 生成 SSID, 直接替换整个函数体, 不拼任何后缀
+	if grep -q 'function default_ssid' "$WIFI_UC"; then
+		awk -v ssid="$WRT_SSID" '
+			/function default_ssid\(band, first_channel\) \{/ {
+				print "\tfunction default_ssid(band, first_channel) {"
+				print "\t\treturn \047" ssid "\047;"
+				print "\t}"
+				skip = 1
+				next
+			}
+			skip && /^\t\}$/ { skip = 0; next }
+			skip { next }
+			{ print }
+		' "$WIFI_UC" > "$WIFI_UC.tmp" && mv "$WIFI_UC.tmp" "$WIFI_UC"
+	fi
 fi
-# uci 配置文件: option ssid 'OWRT'
+# uci 配置文件: config wireless 'defaults' 下的 option ssid/key
+# 这两项必须同时非空, mac80211.uc 才会把它们当作 preset 使用（WiFi 密码走 preset.key）
 if [ -f "$ROUTER_TOOL" ]; then
-	sed -i "s/ssid '.*'/ssid '$WRT_SSID'/g; s/key '.*'/key '$WRT_WORD'/g" "$ROUTER_TOOL"
+	SSID_SED=$(printf '%s' "$WRT_SSID" | sed 's/[&\\]/\\&/g')
+	WORD_SED=$(printf '%s' "$WRT_WORD" | sed 's/[&\\]/\\&/g')
+	sed -i \
+		-e "s|^\([[:space:]]*option ssid \)'[^']*'|\1'$SSID_SED'|" \
+		-e "s|^\([[:space:]]*option key \)'[^']*'|\1'$WORD_SED'|" \
+		"$ROUTER_TOOL"
 fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
